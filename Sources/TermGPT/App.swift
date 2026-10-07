@@ -35,6 +35,7 @@ struct MainView: View {
     @ObservedObject var workspace: Workspace
     @State private var renameTarget: Chat?
     @State private var deleteTarget: Chat?
+    @State private var scrollToLatestRequest = 0
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         VStack(spacing: 0) {
@@ -156,7 +157,13 @@ struct MainView: View {
     }
     var chat: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack { Label(L("AI Chat"), systemImage: "sparkles").font(.headline); Spacer(); Button { workspace.clearChat() } label: { Image(systemName: "trash") }.disabled(workspace.busy).help(L("清空当前聊天")) }.padding(16)
+            HStack {
+                Label(L("AI Chat"), systemImage: "sparkles").font(.headline)
+                Spacer()
+                Button { scrollToLatestRequest += 1 } label: { Image(systemName: "arrow.down.to.line") }
+                    .help(L("滚动到最新")).accessibilityLabel(L("滚动到最新"))
+                Button { workspace.clearChat() } label: { Image(systemName: "trash") }.disabled(workspace.busy).help(L("清空当前聊天"))
+            }.padding(16)
             Divider()
             HStack {
                 Picker("Context", selection: $workspace.contextMode) { ForEach(ContextMode.allCases, id: \.self) { Text(L($0.rawValue)).tag($0) } }.labelsHidden().frame(maxWidth: 175)
@@ -178,7 +185,9 @@ struct MainView: View {
                         ForEach(workspace.currentChat.messages) { message in MessageView(message: message, workspace: workspace).id(message.id) }
                         Color.clear.frame(height: 1).id("bottom")
                     }.padding(18)
-                }.onChange(of: workspace.currentChat.messages.last?.content) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
+                // Streaming updates never change the user's scroll position.
+                // Only an explicit click on the latest button scrolls to the bottom.
+                }.onChange(of: scrollToLatestRequest) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
             }
             Divider()
             VStack(spacing: 8) {

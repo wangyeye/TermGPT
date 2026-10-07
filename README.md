@@ -19,7 +19,7 @@ Extract the ZIP and move `TermGPT.app` into Applications. Releases include `SHA2
 
 - Real PTY local terminals with ANSI rendering, scrollback, interactive SSH and programs such as vim/top.
 - Multiple terminal tabs and editable SSH bookmarks, folders, password or private-key authentication through system OpenSSH.
-- Multiple chats with rename/delete, streaming replies, cancellation, optional local history and export.
+- Multiple chats with rename/delete, streaming replies, cancellation, optional local history and export. Replies never force-scroll; drag the scrollbar and copy generated commands while streaming. Use Scroll to Latest to jump manually.
 - ChatGPT as the preferred provider; OpenAI API, Ollama, LM Studio and compatible endpoints under Advanced / Other Providers.
 - Top-right layout controls to show/hide bookmarks and chat, focus on the terminal, or restore the default layout. Layout persists.
 - English and Chinese UI. Choose Follow System, English or 中文. Chinese system languages use Chinese; other system languages fall back to English.

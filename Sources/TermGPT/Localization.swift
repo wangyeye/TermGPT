@@ -15,6 +15,7 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "滚动到最新": "Scroll to Latest",
         "配置文件版本不受支持": "Unsupported configuration file version",
         "无法保存本机 JSON 配置": "Unable to save local JSON configuration",
         "本机配置目录无效": "Invalid local configuration directory",
