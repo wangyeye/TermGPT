@@ -95,6 +95,7 @@ ChatGPT 的 Auto 选择服务器模型目录首个可见模型，不等同于 Ch
 | `Assets` | 图标源 PNG 及 icns 生成说明 |
 | `Vendor/SwiftTerm` | 已固定的终端库及原始许可证 |
 | `scripts/check-environment.sh` | 使用前检查系统与依赖 |
+| `scripts/audit-release.py` | Python 3 检查 ARM/Intel ZIP 文件白名单、个人路径、典型凭据及图标元数据，失败时停止发布 |
 | `scripts/build-release.sh` | 从干净 Git 提交在临时目录构建 ARM/Intel 包，检查架构、签名和个人路径，生成校验和 |
 | `scripts/build.sh` | 编译 release 后打包 |
 | `scripts/package-app.sh` | 从 release 程序组装、签名 App 和 ZIP |

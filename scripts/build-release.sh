@@ -31,6 +31,7 @@ print('发行程序个人路径与凭据模式检查通过。')
 PY
     cp -X "dist/TermGPT-macOS-$TARGET_ARCH.zip" "$RELEASE_ROOT/dist/"
 done
+python3 "$RELEASE_ROOT/scripts/audit-release.py" "$RELEASE_ROOT/dist/TermGPT-macOS-arm64.zip" "$RELEASE_ROOT/dist/TermGPT-macOS-x86_64.zip"
 cd "$RELEASE_ROOT/dist"
 shasum -a 256 TermGPT-macOS-arm64.zip TermGPT-macOS-x86_64.zip > SHA256SUMS
 shasum -a 256 -c SHA256SUMS
