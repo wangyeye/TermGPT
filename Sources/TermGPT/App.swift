@@ -173,7 +173,7 @@ struct MainView: View {
     var chat: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Label(L("AI Chat"), systemImage: "sparkles").font(.headline)
+                Label(L("AI 助手"), systemImage: "sparkles").font(.headline)
                 Spacer()
                 Button { scrollToLatestRequest += 1 } label: { Image(systemName: "arrow.down.to.line") }
                     .help(L("滚动到最新")).accessibilityLabel(L("滚动到最新"))

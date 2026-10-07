@@ -237,7 +237,7 @@ final class Localization: ObservableObject {
         "解释": "Explain",
         "修复": "Fix",
         "生成命令": "Generate command",
-        "AI 聊天": "AI Chat",
+        "AI 助手": "AI Assistant",
         "API 基础地址": "API Base URL",
         "SSH 配置 / Agent": "SSH config / Agent",
         "上下文：%@ · 默认仅建议命令": "Context: %@ · Commands are suggestions by default",
