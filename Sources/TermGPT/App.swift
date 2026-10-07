@@ -97,7 +97,7 @@ struct MainView: View {
             HStack { Text(L("SSH 书签")).font(.headline); Spacer(); Button { workspace.foldersShown = true } label: { Image(systemName: "folder.badge.gearshape") }.buttonStyle(.plain).help(L("管理文件夹")); Button { workspace.editingBookmark = nil; workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    Button { workspace.newLocal() } label: { Label(L("Local Shell"), systemImage: "laptopcomputer") }.buttonStyle(.plain).padding(.leading, 18).padding(.vertical, 8)
+                    Button { workspace.newLocal() } label: { Label(L("Local Shell"), systemImage: "laptopcomputer").frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 18).padding(.vertical, 8).contentShape(Rectangle()) }.buttonStyle(.plain)
                     ForEach(workspace.folders) { folder in BookmarkFolderSection(workspace: workspace, folder: folder) }
                     ForEach(workspace.bookmarks.filter { item in item.folderID == nil || !workspace.folders.contains(where: { $0.id == item.folderID }) }) { bookmark in
                         BookmarkRow(workspace: workspace, bookmark: bookmark).padding(.leading, 11)
@@ -110,17 +110,17 @@ struct MainView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(workspace.chats) { chat in
-                        HStack(spacing: 4) {
+                        HStack(spacing: 0) {
                             Button { workspace.chatID = chat.id } label: {
-                                Text(chat.nameIsCustom != true && chat.name == "新聊天" ? L("新聊天") : chat.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                                Text(chat.nameIsCustom != true && chat.name == "新聊天" ? L("新聊天") : chat.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).padding(7).contentShape(Rectangle())
                             }.buttonStyle(.plain)
                             Menu {
                                 Button(L("重命名")) { renameTarget = chat }
                                 Button(L("删除"), role: .destructive) { deleteTarget = chat }
                             } label: { Image(systemName: "ellipsis") }
-                                .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22).disabled(workspace.busy)
+                                .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22).padding(7).disabled(workspace.busy)
                                 .accessibilityLabel(L("聊天菜单：%@", chat.name))
-                        }.padding(7).background(workspace.chatID == chat.id ? Color.accentColor.opacity(0.14) : Color.clear).cornerRadius(6)
+                        }.background(workspace.chatID == chat.id ? Color.accentColor.opacity(0.14) : Color.clear).cornerRadius(6)
                             .contextMenu {
                                 Button(L("重命名")) { renameTarget = chat }.disabled(workspace.busy)
                                 Button(L("删除"), role: .destructive) { deleteTarget = chat }.disabled(workspace.busy)
@@ -208,8 +208,14 @@ struct MainView: View {
                         Color.clear.frame(height: 1).id("bottom")
                     }.padding(18)
                 // Streaming updates never change the user's scroll position.
-                // Only an explicit click on the latest button scrolls to the bottom.
+                // Switching conversations or explicitly requesting latest scrolls to the bottom.
                 }.onChange(of: scrollToLatestRequest) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
+                    .task(id: workspace.chatID) {
+                        // Yield until the newly selected conversation is laid out.
+                        await Task.yield()
+                        guard !Task.isCancelled else { return }
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
             }
             Divider()
             VStack(spacing: 8) {
@@ -424,16 +430,16 @@ struct BookmarkRow: View {
     @ObservedObject var workspace: Workspace
     let bookmark: Bookmark
     var body: some View {
-        HStack {
+        HStack(spacing: 0) {
             Button { workspace.open(name: bookmark.name, bookmark: bookmark) } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Label(bookmark.name, systemImage: "server.rack").lineLimit(1)
                     Text(bookmark.host).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(7).contentShape(Rectangle())
             }.buttonStyle(.plain)
             Menu { actions } label: { Image(systemName: "ellipsis") }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22).accessibilityLabel(L("书签菜单：%@", bookmark.name))
-        }.padding(7).contextMenu { actions }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22).padding(7).accessibilityLabel(L("书签菜单：%@", bookmark.name))
+        }.contextMenu { actions }
     }
     @ViewBuilder private var actions: some View {
         Button(L("连接")) { workspace.open(name: bookmark.name, bookmark: bookmark) }

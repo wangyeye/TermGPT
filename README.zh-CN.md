@@ -147,3 +147,5 @@ ICNS 可能由系统工具添加元数据，因此发布只包含经检查的 PN
 TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`，保留其 MIT License 和版权声明；本地 Package.swift 简化为 macOS 库，无远程依赖；上游调试路径改为动态主目录，避免个人绝对路径。图标由 AI 生成，包含终端提示符和星光，不包含第三方商标。项目不是 OpenAI 官方产品。
 
 维护者构建双架构发行包：先提交源码，再运行 `./scripts/build-release.sh`。脚本检查 Git、Python 3 和构建环境，不读取账户或运行配置。
+
+- 聊天和书签整行均可点击选择/连接，三个点菜单独立操作；切换聊天默认显示最下方消息，生成过程中仍不强制滚动。

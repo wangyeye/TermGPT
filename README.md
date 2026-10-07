@@ -143,3 +143,5 @@ For dual-architecture releases, commit first and run `./scripts/build-release.sh
 Not implemented: split terminals, combined multi-terminal context, an agent loop, exact command blocks, SFTP, MCP, SQLite, nested bookmark folders or native Anthropic/Gemini protocols.
 
 MIT licensed. SwiftTerm upstream v1.9.0, commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`, retains its MIT license and copyright notices. Its local manifest is a macOS-only library with no remote dependencies; debug paths use the dynamic home directory. The AI-generated icon depicts a terminal prompt and sparkles without third-party trademarks. TermGPT is not an official OpenAI product.
+
+- Click anywhere in the chat/bookmark row to select/connect; the ellipsis menu is independent. Switching chats opens the latest messages, while streaming replies never force-scroll.
