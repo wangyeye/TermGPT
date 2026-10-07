@@ -183,9 +183,16 @@ struct MainView: View {
             HStack {
                 Picker("Context", selection: $workspace.contextMode) { ForEach(ContextMode.allCases, id: \.self) { Text(L($0.rawValue)).tag($0) } }.labelsHidden().frame(maxWidth: 175)
                 Spacer()
-                Text(workspace.contextMode == .off ? L("No Terminal") : workspace.contextSession?.name ?? L("No Terminal")).font(.caption).lineLimit(1)
+
                 Button { workspace.locked = workspace.locked == nil ? workspace.active : nil } label: { Image(systemName: workspace.locked == nil ? "lock.open" : "lock.fill") }.help(L("锁定 AI 上下文；命令仍发送到当前可见终端"))
             }.padding(12)
+            VStack(alignment: .leading, spacing: 5) {
+                Label(L(workspace.busy ? "本次正在分析：%@" : "下次上下文：%@", workspace.busy ? (workspace.replyAnalysisTarget ?? L("未附终端上下文")) : workspace.analysisTargetLabel), systemImage: "text.magnifyingglass")
+                if !workspace.busy && workspace.contextMode == .auto { Text(L("自动模式仅在问题与终端相关时附加上下文。")).foregroundStyle(.secondary) }
+                if workspace.locked != nil { Text(L("上下文已锁定；切换标签页不会改变分析来源。")).foregroundStyle(.secondary) }
+                Label(L("命令发送到：%@", workspace.executionTargetLabel), systemImage: "terminal")
+            }.font(.caption).textSelection(.enabled).padding(.horizontal, 12).padding(.bottom, 12)
+            Divider()
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 20) {
@@ -254,6 +261,13 @@ struct MessageView: View {
                         let code = block.content
                         VStack(alignment: .leading, spacing: 10) {
                             Text(code).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                            if block.isShellCommand {
+                                Label(L("填入 / 执行目标：%@", workspace.executionTargetLabel), systemImage: "terminal")
+                                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                if workspace.locked != nil && workspace.locked != workspace.active {
+                                    Text(L("分析来源与执行目标不同，请核对目标主机。")).font(.caption).foregroundStyle(.orange)
+                                }
+                            }
                             HStack {
                                 if block.isShellCommand {
                                     Text(Safety.highRisk(code) ? L("需谨慎确认") : L("LOW")).font(.system(size: 10, weight: .bold)).foregroundStyle(Safety.highRisk(code) ? .orange : .green)
@@ -261,8 +275,8 @@ struct MessageView: View {
                                 Spacer()
                                 Button(L("复制")) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code, forType: .string) }
                                 if block.isShellCommand {
-                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || index == parts.count - 1)
-                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || index == parts.count - 1)
+                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || index == parts.count - 1)
+                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || index == parts.count - 1)
                                 }
                             }.font(.caption)
                         }.padding(12).background(Color.primary.opacity(0.055)).cornerRadius(8)
@@ -279,7 +293,7 @@ struct RunView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Label(proposal.high ? L("潜在危险命令") : L("确认执行"), systemImage: proposal.high ? "exclamationmark.triangle" : "terminal").font(.title2)
-            Text(L("目标终端：%@", proposal.name)).font(.headline)
+            Text(L("目标终端：%@", workspace.sessions.first(where: { $0.id == proposal.target })?.targetLabel ?? proposal.name)).font(.headline)
             Text(proposal.command).font(.system(.body, design: .monospaced)).textSelection(.enabled).padding().frame(maxWidth: .infinity, alignment: .leading).background(Color.secondary.opacity(0.1)).cornerRadius(8)
             Text(L("如果终端正在 vim、密码提示或其他交互程序中，请先取消并退出该程序。")).font(.caption).foregroundStyle(.secondary)
             HStack { Button(L("取消")) { workspace.proposal = nil }; Spacer(); Button(L("确认执行")) { workspace.proposal = nil; workspace.run(proposal) }.buttonStyle(.borderedProminent) }
