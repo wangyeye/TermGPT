@@ -6,13 +6,18 @@ PACKAGE_STAGE="$(mktemp -d /private/tmp/termgpt-package.XXXXXX)"
 trap 'rm -rf "$PACKAGE_STAGE"' EXIT
 APP="$PACKAGE_STAGE/TermGPT.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-if [[ -x .build/out/Products/Release/TermGPT ]]; then
+if [[ -n "${1:-}" ]]; then
+    APP_BINARY="$1"
+    [[ -x "$APP_BINARY" ]] || { echo "缺少 release 程序"; exit 1; }
+elif [[ -x .build/out/Products/Release/TermGPT ]]; then
     APP_BINARY="$PWD/.build/out/Products/Release/TermGPT"
 elif [[ -x .build/release/TermGPT ]]; then
     APP_BINARY="$PWD/.build/release/TermGPT"
 else
     echo '缺少 release 程序，请先运行 scripts/build.sh'; exit 1
 fi
+PACKAGE_ARCH="$(lipo -archs "$APP_BINARY")"
+case "$PACKAGE_ARCH" in arm64|x86_64) ;; *) echo "不支持的发行架构"; exit 1;; esac
 cp -X "$APP_BINARY" "$APP/Contents/MacOS/TermGPT"
 cp -X Assets/TermGPT.icns "$APP/Contents/Resources/TermGPT.icns"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -24,8 +29,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>TermGPT</string>
 <key>CFBundleDisplayName</key><string>TermGPT</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.2.0</string>
-<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleShortVersionString</key><string>0.2.1</string>
+<key>CFBundleVersion</key><string>3</string>
 <key>CFBundleIconFile</key><string>TermGPT</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -39,6 +44,6 @@ codesign --force --sign - "$APP"
 codesign --verify --deep --strict "$APP"
 mkdir -p "$PWD/dist"
 /usr/bin/ditto --norsrc --noextattr "$APP" "$PWD/dist/TermGPT.app"
-/usr/bin/ditto --norsrc --noextattr -c -k --keepParent "$APP" "$PWD/dist/TermGPT-macOS-arm64.zip"
+/usr/bin/ditto --norsrc --noextattr -c -k --keepParent "$APP" "$PWD/dist/TermGPT-macOS-$PACKAGE_ARCH.zip"
 echo "App：$PWD/dist/TermGPT.app"
-echo "签名验证通过的 ZIP：$PWD/dist/TermGPT-macOS-arm64.zip"
+echo "签名验证通过的 ZIP：$PWD/dist/TermGPT-macOS-$PACKAGE_ARCH.zip"

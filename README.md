@@ -2,6 +2,15 @@
 
 原生 macOS 终端与 AI 聊天工作台。使用 SwiftUI、AppKit 和 SwiftTerm；终端独立运行，AI 可按需读取用户选择的终端上下文。
 
+## 下载
+
+从 [GitHub Releases](https://github.com/wangyeye/TermGPT/releases) 下载 macOS 13+ 安装包：
+
+- Apple Silicon（M1/M2/M3 等）：`TermGPT-macOS-arm64.zip`
+- Intel Mac：`TermGPT-macOS-x86_64.zip`
+
+解压后将 `TermGPT.app` 拖入 Applications。提供 SHA256SUMS 校验文件。应用暂未 Developer ID 签名或公证；签名验证不等于 Gatekeeper 已批准。
+
 ![TermGPT icon](Assets/AppIcon.png)
 
 ## 功能
@@ -27,7 +36,7 @@ cd TermGPT
 ./scripts/run.sh
 ```
 
-输出为 `dist/TermGPT.app` 和 `dist/TermGPT-macOS-arm64.zip`。目前交付目标为 Apple Silicon；Intel 需自行构建并调整包名。App 使用本地 ad-hoc 签名，没有 Developer ID 签名或公证。环境脚本会在缺少依赖时退出，不更改系统默认工具链或接受 Xcode 许可。
+输出为 `dist/TermGPT.app` 和 `dist/TermGPT-macOS-arm64.zip`。发行包分别提供 arm64 和 x86_64；Intel 包完成交叉编译和架构检查，尚未在实体 Intel Mac 实测。App 使用本地 ad-hoc 签名，没有 Developer ID 签名或公证。环境脚本会在缺少依赖时退出，不更改系统默认工具链或接受 Xcode 许可。
 
 若工作目录由文件同步服务管理，建议解压 ZIP 到本机目录后使用；脚本在临时目录签名，避免文件同步元数据影响签名。
 
@@ -86,6 +95,7 @@ ChatGPT 的 Auto 选择服务器模型目录首个可见模型，不等同于 Ch
 | `Assets` | 图标源 PNG 及 icns 生成说明 |
 | `Vendor/SwiftTerm` | 已固定的终端库及原始许可证 |
 | `scripts/check-environment.sh` | 使用前检查系统与依赖 |
+| `scripts/build-release.sh` | 从干净 Git 提交在临时目录构建 ARM/Intel 包，检查架构、签名和个人路径，生成校验和 |
 | `scripts/build.sh` | 编译 release 后打包 |
 | `scripts/package-app.sh` | 从 release 程序组装、签名 App 和 ZIP |
 | `scripts/run.sh` | 启动 App，缺少 App 时先构建 |
@@ -118,3 +128,5 @@ ICNS 可能由系统工具添加元数据，因此发布只包含经检查的 PN
 尚未实现分屏、多终端联合上下文、Agent 循环、精确命令块、SFTP、MCP、SQLite、书签编辑和原生 Anthropic/Gemini 协议。
 
 TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`，保留其 MIT License 和版权声明；本地 Package.swift 简化为 macOS 库，无远程依赖；上游调试路径改为动态主目录，避免个人绝对路径。图标由 AI 生成，包含终端提示符和星光，不包含第三方商标。项目不是 OpenAI 官方产品。
+
+维护者构建双架构发行包：先提交源码，再运行 `./scripts/build-release.sh`。脚本检查 Git、Python 3 和构建环境，不读取账户、Keychain 或运行配置。

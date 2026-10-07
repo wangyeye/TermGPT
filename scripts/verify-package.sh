@@ -9,5 +9,8 @@ trap 'rm -rf "$VERIFY_STAGE"' EXIT
 /usr/bin/ditto -x -k --norsrc "$ARCHIVE" "$VERIFY_STAGE"
 plutil -lint "$VERIFY_STAGE/TermGPT.app/Contents/Info.plist"
 codesign --verify --deep --strict "$VERIFY_STAGE/TermGPT.app"
+if [[ -n "${2:-}" ]]; then
+    [[ "$(lipo -archs "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPT")" == "$2" ]] || { echo "发行架构不匹配"; exit 1; }
+fi
 file "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPT"
 echo 'ZIP 解压、应用格式与签名验证通过'
