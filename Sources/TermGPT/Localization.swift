@@ -15,6 +15,7 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "ChatGPT 使用额度已用尽，预计恢复时间：%@。请等待恢复，或在设置中切换模型或其他 AI 服务。": "Your ChatGPT usage limit has been reached. Expected reset: %@. Wait for it to reset, or switch models or AI providers in Settings.",
         "滚动到最新": "Scroll to Latest",
         "配置文件版本不受支持": "Unsupported configuration file version",
         "无法保存本机 JSON 配置": "Unable to save local JSON configuration",
@@ -185,7 +186,11 @@ final class Localization: ObservableObject {
         "当前账户未返回可选模型": "No models were returned for this account",
         "尚未取得当前账户的可用模型，请在设置中刷新模型": "Models are not available yet. Refresh models in Settings.",
         "ChatGPT 使用额度已到限制，请在 Settings → Usage 查看并管理用量": "ChatGPT usage limit reached. Review usage in Settings → Usage.",
-        "ChatGPT 返回未完成的响应，请重新尝试": "ChatGPT returned an incomplete response. Try again.",
+        "ChatGPT 使用额度已用尽，请等待额度恢复，或在设置中切换模型或其他 AI 服务。": "Your ChatGPT usage limit has been reached. Wait for it to reset, or switch models or AI providers in Settings.",
+        "ChatGPT 请求过于频繁，请稍后再试。": "Too many ChatGPT requests. Please try again later.",
+        "ChatGPT 回复达到长度上限，已保留生成内容，可发送“继续”获取后续内容。": "ChatGPT reached the response length limit. Generated content has been kept; ask it to continue.",
+        "ChatGPT 因内容限制停止了回复，请调整问题。": "ChatGPT stopped the response due to content restrictions. Please revise your question.",
+        "ChatGPT 未完成回复，已保留生成内容，请稍后再试。": "ChatGPT did not finish the response. Generated content has been kept. Please try again later.",
         "ChatGPT 响应连接中断，回复尚未完成": "ChatGPT connection interrupted before the response finished",
         "已断开连接": "Disconnected",
         "本机已断开；远端撤销未确认，可在 ChatGPT Settings 中移除应用访问。": "Disconnected locally. Remote revocation is unconfirmed; remove app access in ChatGPT Settings if needed.",

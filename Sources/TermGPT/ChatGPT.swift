@@ -311,7 +311,15 @@ struct ChatGPTModel: Identifiable, Equatable {
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if status == 429 { throw AppError.message("ChatGPT 使用额度已到限制，请在 Settings → Usage 查看并管理用量") }
+            var body = Data()
+            for try await byte in bytes {
+                body.append(byte)
+                if body.count >= 65_536 { break }
+            }
+            let payload = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            if status == 429 || !payload.isEmpty {
+                throw AppError.message(ChatGPTResponseError.message(payload, status: status))
+            }
             throw AppError.message("ChatGPT 请求失败（HTTP \(status)），请检查登录或套餐授权")
         }
         var completed = false
@@ -320,8 +328,13 @@ struct ChatGPTModel: Identifiable, Equatable {
             guard line.hasPrefix("data:"), let data = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces).data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
             switch object["type"] as? String {
             case "response.output_text.delta": if let delta = object["delta"] as? String { await update(delta) }
-            case "response.completed": completed = true
-            case "response.failed", "response.incomplete", "error": throw AppError.message("ChatGPT 返回未完成的响应，请重新尝试")
+            case "response.completed":
+                let result = object["response"] as? [String: Any] ?? [:]
+                if let state = result["status"] as? String, state == "failed" || state == "incomplete" {
+                    throw AppError.message(ChatGPTResponseError.message(object))
+                }
+                completed = true
+            case "response.failed", "response.incomplete", "error": throw AppError.message(ChatGPTResponseError.message(object))
             default: break
             }
         }

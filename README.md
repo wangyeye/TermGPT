@@ -21,6 +21,7 @@ Extract the ZIP and move `TermGPT.app` into Applications. Releases include `SHA2
 - Multiple terminal tabs and editable SSH bookmarks, folders, password or private-key authentication through system OpenSSH.
 - Multiple chats with rename/delete, streaming replies, cancellation, optional local history and export. Replies never force-scroll; drag the scrollbar and copy generated commands while streaming. Use Scroll to Latest to jump manually.
 - Only explicitly labelled shell code blocks offer Insert/Run actions. Errors, logs, unlabelled quotes and other code languages offer Copy only. AI replies are instructed to label command blocks as bash and references as text.
+- ChatGPT errors distinguish exhausted usage, temporary request limits, response length and content restrictions. Reset times are shown when returned by the service.
 - ChatGPT as the preferred provider; OpenAI API, Ollama, LM Studio and compatible endpoints under Advanced / Other Providers.
 - Top-right layout controls to show/hide bookmarks and chat, focus on the terminal, or restore the default layout. Layout persists.
 - English and Chinese UI. Choose Follow System, English or 中文. Chinese system languages use Chinese; other system languages fall back to English.
