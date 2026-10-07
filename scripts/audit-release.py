@@ -8,7 +8,7 @@ from pathlib import Path
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('archives', type=Path, nargs='+')
 args = parser.parse_args()
-allowed = {'TermGPT.app/Contents/Info.plist', 'TermGPT.app/Contents/MacOS/TermGPT',
+allowed = {'TermGPT.app/Contents/Info.plist', 'TermGPT.app/Contents/MacOS/TermGPT', 'TermGPT.app/Contents/MacOS/TermGPTSSHAskpass',
            'TermGPT.app/Contents/Resources/TermGPT.icns', 'TermGPT.app/Contents/_CodeSignature/CodeResources'}
 for archive in args.archives:
     if not archive.is_file():

@@ -196,6 +196,7 @@ struct ChatGPTModel: Identifiable, Equatable {
 @MainActor final class ChatGPTAccount: ObservableObject {
     @Published private(set) var vault = ChatGPTVault()
     @Published private(set) var connecting = false
+    @Published private(set) var loadingAccount = true
     @Published private(set) var models: [ChatGPTModel] = []
     @Published var message = ""
     @Published var welcome = false
@@ -205,9 +206,15 @@ struct ChatGPTModel: Identifiable, Equatable {
     private var modelClient: String?
     var account: ChatGPTRegistration? { vault.registrations.first { $0.clientID == vault.selected } }
     var connected: Bool { account?.connected == true }
-    init() { do { vault = try ChatGPTKeychain.load() } catch { message = error.localizedDescription } }
+    init() {
+        let load = Task.detached(priority: .userInitiated) { try ChatGPTKeychain.load() }
+        Task {
+            do { vault = try await load.value } catch { message = error.localizedDescription }
+            loadingAccount = false
+        }
+    }
     func connect(newAccount: Bool = false) {
-        guard !connecting else { return }
+        guard !connecting, !loadingAccount else { return }
         connecting = true; message = "正在等待浏览器授权…"
         loginTask = Task {
             let loop = OAuthLoopback(); loopback = loop

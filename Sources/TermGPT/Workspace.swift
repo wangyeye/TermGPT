@@ -35,6 +35,14 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
         environment["TERM"] = "xterm-256color"; environment["COLORTERM"] = "truecolor"
         if let bookmark {
             let args = try bookmark.arguments()
+            if bookmark.authentication == .key && !FileManager.default.isReadableFile(atPath: NSString(string: bookmark.keyPath).expandingTildeInPath) { throw AppError.message("私钥文件不可读，请检查路径与权限") }
+            if bookmark.authentication == .password, try SSHPasswordStore.read(id: bookmark.id) != nil {
+                let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/TermGPTSSHAskpass").path
+                guard FileManager.default.isExecutableFile(atPath: helper) else { throw AppError.message("缺少 SSH 密码登录组件，请使用完整安装包") }
+                environment["SSH_ASKPASS"] = helper; environment["SSH_ASKPASS_REQUIRE"] = "force"
+                environment["DISPLAY"] = "TermGPT"; environment["TERMGPT_SSH_BOOKMARK_ID"] = bookmark.id.uuidString
+                environment["LC_ALL"] = "C"
+            }
             view.startProcess(executable: "/usr/bin/ssh", args: args, environment: environment.map { "\($0.key)=\($0.value)" })
             status = "SSH 进程运行中"
         } else {
@@ -75,6 +83,9 @@ struct RunProposal: Identifiable {
     @Published var locked: UUID?
     @Published var contextMode = ContextMode.auto
     @Published var bookmarks: [Bookmark] = []
+    @Published var folders: [BookmarkFolder] = []
+    @Published var editingBookmark: Bookmark?
+    @Published var foldersShown = false
     @Published var chats = [Chat()]
     @Published var chatID: UUID?
     @Published var preferences = Preferences()
@@ -93,12 +104,41 @@ struct RunProposal: Identifiable {
     var contextSession: TerminalSession? { sessions.first { $0.id == (locked ?? active) } }
     var currentChat: Chat { chats.first { $0.id == chatID } ?? chats[0] }
     init() {
-        if let state = DiskStore.load() { bookmarks = state.bookmarks; preferences = state.preferences; if !state.chats.isEmpty { chats = state.chats } }
+        if let state = DiskStore.load() { bookmarks = state.bookmarks; folders = state.folders ?? []; preferences = state.preferences; if !state.chats.isEmpty { chats = state.chats } }
         chatID = chats.first?.id
         newLocal()
     }
+    func applyTerminalTheme(light: Bool) {
+        preferences.lightTerminal = light
+        sessions.forEach { $0.apply(preferences) }
+    }
     func persist() {
-        do { try DiskStore.save(SavedState(bookmarks: bookmarks, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        do { try DiskStore.save(SavedState(bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+    }
+    func saveBookmark(_ bookmark: Bookmark, password: String) throws {
+        _ = try bookmark.arguments()
+        if bookmark.authentication == .key && bookmark.keyPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { throw AppError.message("请选择私钥文件") }
+        if bookmark.authentication == .password {
+            guard !password.isEmpty else { throw AppError.message("请输入要保存的 SSH 密码") }
+            try SSHPasswordStore.write(password, id: bookmark.id)
+        } else { try SSHPasswordStore.remove(id: bookmark.id) }
+        if let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[index] = bookmark }
+        else { bookmarks.append(bookmark) }
+        persist()
+    }
+    func deleteBookmark(_ id: UUID) {
+        do { try SSHPasswordStore.remove(id: id); bookmarks.removeAll { $0.id == id }; persist() }
+        catch { self.error = error.localizedDescription }
+    }
+    func saveFolders(_ updated: [BookmarkFolder]) {
+        folders = updated
+        let ids = Set(updated.map(\.id))
+        for index in bookmarks.indices { if let id = bookmarks[index].folderID, !ids.contains(id) { bookmarks[index].folderID = nil } }
+        persist()
+    }
+    func moveBookmark(_ id: UUID, folder: UUID?) {
+        guard let index = bookmarks.firstIndex(where: { $0.id == id }) else { return }
+        bookmarks[index].folderID = folder; persist()
     }
     func open(name: String, bookmark: Bookmark? = nil) {
         let session = TerminalSession(name: name, bookmark: bookmark)
@@ -118,7 +158,18 @@ struct RunProposal: Identifiable {
         if active == id { active = sessions.last?.id }
     }
     func newChat() { let c = Chat(); chats.append(c); chatID = c.id; persist() }
-    func clearChat() { guard let index = chats.firstIndex(where: { $0.id == chatID }) else { return }; chats[index].messages = []; chats[index].name = "新聊天"; persist() }
+    func renameChat(_ id: UUID, title: String) {
+        guard !busy, ChatActions.rename(id, title: title, chats: &chats) else { return }
+        persist()
+    }
+    func deleteChat(_ id: UUID) {
+        guard !busy else { return }
+        let wasActive = chatID == id
+        guard ChatActions.delete(id, chats: &chats, selected: &chatID) else { return }
+        if wasActive { input = ""; selectedContext = nil }
+        persist()
+    }
+    func clearChat() { guard let index = chats.firstIndex(where: { $0.id == chatID }) else { return }; chats[index].messages = []; if chats[index].nameIsCustom != true { chats[index].name = "新聊天" }; persist() }
     func context(for question: String) -> String {
         guard contextMode != .off, let session = contextSession else { return "" }
         if contextMode == .auto && !Safety.needsTerminal(question, names: sessions.map(\.name)) { return "" }
@@ -144,7 +195,7 @@ struct RunProposal: Identifiable {
     func begin(messages: [Message], chat: UUID) {
         guard !busy, let index = chats.firstIndex(where: { $0.id == chat }), let last = messages.last else { return }
         busy = true; input = ""; selectedContext = nil
-        if chats[index].messages.isEmpty { chats[index].name = String(last.content.prefix(28)).components(separatedBy: "\n")[0] }
+        if chats[index].messages.isEmpty && chats[index].nameIsCustom != true { chats[index].name = String(last.content.prefix(28)).components(separatedBy: "\n")[0] }
         // Store the submitted (possibly redacted) context for an auditable conversation.
         chats[index].messages.append(last)
         let reply = Message(role: "assistant", content: "")

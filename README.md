@@ -16,9 +16,10 @@
 ## 功能
 
 - 真实 PTY 本地终端，支持 ANSI、回滚、交互式 SSH 和 vim/top。
-- 多终端标签、SSH 书签、私钥路径及 ProxyJump，使用系统 OpenSSH。
-- 独立多聊天，支持流式回复、取消、历史保存与导出。
+- 多终端标签、SSH 书签编辑、重命名、删除、文件夹分组、密码或私钥登录，使用系统 OpenSSH。
+- 独立多聊天，支持重命名、删除、流式回复、取消、历史保存与导出。
 - ChatGPT 为首选；OpenAI API、Ollama、LM Studio 和兼容接口位于 Advanced / Other Providers。
+- 整体主题支持跟随系统、浅色与深色，覆盖界面、弹窗、输入框和终端。
 - 上下文模式：Auto、Off、选中文本、最近 50/200 行、整个会话；支持固定上下文。
 - 终端右键 Ask AI / Explain / Fix / Generate command。
 - 代码块支持复制、填入和执行。低风险单行命令直接执行，未知或高风险命令需要点击“确认执行”，不需输入 RUN。
@@ -42,13 +43,14 @@ cd TermGPT
 
 ## 使用
 
-1. 启动后直接使用本地 Shell。点击 SSH 书签旁的 `+` 添加主机，密码及主机指纹确认由系统 SSH 在终端中处理。
+1. 启动后直接使用本地 Shell。点击 SSH 书签旁的 `+` 添加主机；每项的 `…` / 右键菜单可编辑、删除和移动到文件夹，文件夹按钮用于新建、改名和删除分组。登录方式可选 SSH config / Agent、保存密码或私钥文件。密码只保存在 Keychain，首次连接仍需确认主机指纹；不提供跳板机功能，旧跳板机字段忽略。
 2. 打开设置，点击 Continue with ChatGPT，在系统浏览器完成登录和套餐授权。服务决定套餐、额度和模型权限；未返回套餐名时不会推测为 Plus。
 3. 其他供应商在 Advanced / Other Providers 配置。OpenAI API 需要独立密钥；Ollama 默认 `http://127.0.0.1:11434/v1`，LM Studio 默认 `http://127.0.0.1:1234/v1`，本地服务需先启动并填写实际模型名。
 4. 在聊天输入框按 Enter 发送、Option+Enter 换行。中文输入法确认候选时不会发送。
-5. 用 Context 选择本次需要附带的内容。Auto 是启发式判断；明确控制发送范围时使用 Off 或手动模式。
-6. 在 Terminal & Privacy 中设置“发送前自动脱敏”，保存后生效。默认开启；关闭后消息、历史和所选终端上下文会原样发送给当前供应商。
-7. AI 不会自行执行命令。“填入”不发送 Enter；“执行”针对当前可见终端，发送前清除正常 Shell 输入行。不要在密码提示、vim 或其他交互程序中点击执行。
+5. 聊天列表每项的 `…` 菜单或右键菜单可重命名与删除。自定义名称保留，删除当前聊天后切换到相邻聊天，删除最后一项会创建空白聊天；正在回复时操作暂不可用。
+6. 用 Context 选择本次需要附带的内容。Auto 是启发式判断；明确控制发送范围时使用 Off 或手动模式。
+7. 在 Terminal & Privacy 选择跟随系统 / 浅色 / 深色主题，保存后应用并持久化。也可在此设置“发送前自动脱敏”，保存后生效。默认开启；关闭后消息、历史和所选终端上下文会原样发送给当前供应商。
+8. AI 不会自行执行命令。“填入”不发送 Enter；“执行”针对当前可见终端，发送前清除正常 Shell 输入行。不要在密码提示、vim 或其他交互程序中点击执行。
 
 ChatGPT 的 Auto 选择服务器模型目录首个可见模型，不等同于 ChatGPT 网页自动路由。连接与推理使用官方 OAuth 和 Responses 接口；服务可用性及授权由官方服务控制。实现参考：[登录](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)、[模型和推理](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)、[会话管理](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)。
 
@@ -68,6 +70,7 @@ ChatGPT 的 Auto 选择服务器模型目录首个可见模型，不等同于 Ch
 ## 数据与隐私
 
 - 项目源码不包含账户、密钥、真实聊天、SSH 配置或终端记录。
+- SSH 密码保存在 Keychain service `local.TermGPT.ssh-password`，书签 JSON 不包含密码。随 App 提供的 `TermGPTSSHAskpass` 仅在 OpenSSH 密码认证时读取对应书签的密码，不通过参数或环境传递密码。主机指纹需人工确认；加密私钥口令和多因素认证建议使用 SSH Agent / 手工登录，保存密码模式不支持任意 OTP 提示。系统可能首次询问认证组件的 Keychain 访问权限。
 - ChatGPT 凭据保存在 Keychain service `local.TermGPT.chatgpt`；API Key 在 `local.TermGPT.api`。
 - 设置、书签及可选聊天保存在 `~/Library/Application Support/TermGPT/workspace.json`，目录权限 0700、文件权限 0600。关闭保存聊天后，持久化文件不再包含聊天。
 - OAuth 使用 PKCE、state、nonce 和签名验证；回调仅监听 127.0.0.1，有五分钟超时。Disconnect 清除本地令牌并尝试远程撤销。不会读取 ChatGPT 网站历史聊天。
@@ -126,7 +129,7 @@ ICNS 可能由系统工具添加元数据，因此发布只包含经检查的 PN
 
 ## 范围与许可证
 
-尚未实现分屏、多终端联合上下文、Agent 循环、精确命令块、SFTP、MCP、SQLite、书签编辑和原生 Anthropic/Gemini 协议。
+尚未实现分屏、多终端联合上下文、Agent 循环、精确命令块、SFTP、MCP、SQLite、多层文件夹和原生 Anthropic/Gemini 协议。
 
 TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`，保留其 MIT License 和版权声明；本地 Package.swift 简化为 macOS 库，无远程依赖；上游调试路径改为动态主目录，避免个人绝对路径。图标由 AI 生成，包含终端提示符和星光，不包含第三方商标。项目不是 OpenAI 官方产品。
 

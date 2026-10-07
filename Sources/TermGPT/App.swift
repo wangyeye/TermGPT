@@ -28,6 +28,9 @@ enum TermGPTIcon {
 }
 struct MainView: View {
     @ObservedObject var workspace: Workspace
+    @State private var renameTarget: Chat?
+    @State private var deleteTarget: Chat?
+    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         VStack(spacing: 0) {
             HSplitView {
@@ -43,29 +46,33 @@ struct MainView: View {
                 Text(workspace.busy ? "AI 正在回复" : (workspace.preferences.provider == .chatGPT ? "ChatGPT" : (workspace.preferences.model.isEmpty ? "AI 未配置" : workspace.preferences.provider.rawValue))).foregroundStyle(workspace.busy ? .orange : .secondary)
             }.font(.caption).padding(10)
         }
+        .preferredColorScheme(workspace.preferences.interfaceTheme.colorScheme)
+        .onChange(of: colorScheme) { scheme in workspace.applyTerminalTheme(light: scheme == .light) }
+        .sheet(item: $renameTarget) { chat in RenameChatView(workspace: workspace, chat: chat) }
+        .alert("删除聊天？", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
+            Button("取消", role: .cancel) { deleteTarget = nil }
+            Button("删除", role: .destructive) { if let chat = deleteTarget { workspace.deleteChat(chat.id) }; deleteTarget = nil }
+        } message: { Text("删除“\(deleteTarget?.name ?? "")”及其本地消息记录。") }
         .sheet(isPresented: $workspace.settingsShown) { SettingsView(workspace: workspace) }
-        .sheet(isPresented: $workspace.bookmarkShown) { BookmarkView(workspace: workspace) }
+        .sheet(isPresented: $workspace.bookmarkShown) { BookmarkView(workspace: workspace, existing: workspace.editingBookmark) }
+        .sheet(isPresented: $workspace.foldersShown) { FolderManagerView(workspace: workspace) }
         .sheet(isPresented: $workspace.historyShown) { HistoryView(workspace: workspace) }
         .sheet(item: $workspace.proposal) { p in RunView(workspace: workspace, proposal: p) }
         .alert("TermGPT", isPresented: Binding(get: { workspace.error != nil }, set: { if !$0 { workspace.error = nil } })) { Button("好") { workspace.error = nil } } message: { Text(workspace.error ?? "") }
-        .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
+        .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true); workspace.applyTerminalTheme(light: colorScheme == .light) }
     }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack { Image(nsImage: TermGPTIcon.image).resizable().frame(width: 28, height: 28); Text("TermGPT").font(.title2.bold()) }.padding(.top, 8)
             Text("AI TERMINAL WORKBENCH").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
             Divider()
-            HStack { Text("SSH 书签").font(.headline); Spacer(); Button { workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
+            HStack { Text("SSH 书签").font(.headline); Spacer(); Button { workspace.foldersShown = true } label: { Image(systemName: "folder.badge.gearshape") }.buttonStyle(.plain).help("管理文件夹"); Button { workspace.editingBookmark = nil; workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     Button { workspace.newLocal() } label: { Label("Local Shell", systemImage: "laptopcomputer") }.buttonStyle(.plain).padding(.vertical, 8)
-                    ForEach(workspace.bookmarks) { bookmark in
-                        Button { workspace.open(name: bookmark.name, bookmark: bookmark) } label: {
-                            VStack(alignment: .leading, spacing: 4) { Label(bookmark.name, systemImage: "server.rack"); Text(bookmark.host).font(.caption).foregroundStyle(.secondary) }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
-                        }.buttonStyle(.plain).contextMenu {
-                            Button("连接") { workspace.open(name: bookmark.name, bookmark: bookmark) }
-                            Button("删除书签", role: .destructive) { workspace.bookmarks.removeAll { $0.id == bookmark.id }; workspace.persist() }
-                        }
+                    ForEach(workspace.folders) { folder in BookmarkFolderSection(workspace: workspace, folder: folder) }
+                    ForEach(workspace.bookmarks.filter { item in item.folderID == nil || !workspace.folders.contains(where: { $0.id == item.folderID }) }) { bookmark in
+                        BookmarkRow(workspace: workspace, bookmark: bookmark)
                     }
                     if workspace.bookmarks.isEmpty { Text("添加主机书签后点击连接。SSH 密码及主机指纹确认会在真实终端中显示。").font(.caption).foregroundStyle(.secondary).padding(.vertical, 10) }
                 }
@@ -73,7 +80,25 @@ struct MainView: View {
             Divider()
             HStack { Text("聊天").font(.headline); Spacer(); Button { workspace.newChat() } label: { Image(systemName: "plus") }.buttonStyle(.plain).disabled(workspace.busy) }
             ScrollView {
-                VStack(alignment: .leading, spacing: 6) { ForEach(workspace.chats) { c in Button { workspace.chatID = c.id } label: { Text(c.name).lineLimit(1).padding(7).frame(maxWidth: .infinity, alignment: .leading).background(workspace.chatID == c.id ? Color.accentColor.opacity(0.14) : Color.clear).cornerRadius(6) }.buttonStyle(.plain) } }
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(workspace.chats) { chat in
+                        HStack(spacing: 4) {
+                            Button { workspace.chatID = chat.id } label: {
+                                Text(chat.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                            }.buttonStyle(.plain)
+                            Menu {
+                                Button("重命名") { renameTarget = chat }
+                                Button("删除", role: .destructive) { deleteTarget = chat }
+                            } label: { Image(systemName: "ellipsis") }
+                                .menuStyle(.borderlessButton).frame(width: 22).disabled(workspace.busy)
+                                .accessibilityLabel("聊天菜单：" + chat.name)
+                        }.padding(7).background(workspace.chatID == chat.id ? Color.accentColor.opacity(0.14) : Color.clear).cornerRadius(6)
+                            .contextMenu {
+                                Button("重命名") { renameTarget = chat }.disabled(workspace.busy)
+                                Button("删除", role: .destructive) { deleteTarget = chat }.disabled(workspace.busy)
+                            }
+                    }
+                }
             }.frame(maxHeight: 180)
             Spacer()
             Button { workspace.export() } label: { Label("导出会话", systemImage: "square.and.arrow.up") }.buttonStyle(.plain)
@@ -239,7 +264,10 @@ struct SettingsView: View {
                         Text("Terminal & Privacy").font(.headline)
                         TextField("Shell 路径", text: $preferences.shell)
                         Slider(value: $preferences.fontSize, in: 10...24, step: 1) { Text("字体大小 \(Int(preferences.fontSize))") }
-                        Toggle("浅色终端", isOn: $preferences.lightTerminal)
+                        Picker("界面主题", selection: $preferences.interfaceTheme) {
+                            ForEach(InterfaceTheme.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Text("主题应用于整个界面、弹窗、聊天输入框和终端。").font(.caption).foregroundStyle(.secondary)
                         Toggle("保存聊天到本机", isOn: $preferences.saveMemory)
                         Toggle("发送前自动脱敏", isOn: $preferences.redactBeforeSending)
                         Text(preferences.redactBeforeSending ? "自动替换消息、历史聊天及终端上下文中的常见敏感字段，不弹出确认框。" : "按原文发送消息、历史聊天及终端上下文；其中的密码、Token 或私钥也会发送给当前 AI Provider。")
@@ -300,10 +328,10 @@ struct ChatGPTSettings: View {
                 Button("连接其他 ChatGPT 账户") { account.connect(newAccount: true) }.disabled(workspace.busy || account.connecting)
                 Text("Using ChatGPT plan · 合资格请求使用你授权的套餐或可用额度。").font(.caption).foregroundStyle(.secondary)
             } else {
-                HStack { Text("Status").foregroundStyle(.secondary); Spacer(); Text(account.connecting ? "Connecting…" : "Not connected").foregroundStyle(.secondary) }
+                HStack { Text("Status").foregroundStyle(.secondary); Spacer(); Text(account.loadingAccount ? "读取账户…" : (account.connecting ? "Connecting…" : "Not connected")).foregroundStyle(.secondary) }
                 Button { account.connect() } label: {
                     HStack { Image(systemName: "person.crop.circle"); Text("Continue with ChatGPT").fontWeight(.semibold) }.frame(maxWidth: .infinity).padding(.vertical, 8)
-                }.buttonStyle(.borderedProminent).tint(.primary).disabled(account.connecting || workspace.busy)
+                }.buttonStyle(.borderedProminent).tint(.primary).disabled(account.loadingAccount || account.connecting || workspace.busy)
                 if account.connecting { Button("取消连接") { account.cancelLogin() } }
                 Text("在系统浏览器完成登录和套餐授权，无需 API Key。成功验证身份后显示账户与模型。").font(.caption).foregroundStyle(.secondary)
             }
@@ -313,25 +341,171 @@ struct ChatGPTSettings: View {
         .alert("You're using your ChatGPT plan", isPresented: $account.welcome) { Button("Got it") { account.acknowledgeWelcome(); preferences.provider = .chatGPT } } message: { Text("TermGPT 中合资格的 AI 请求会使用你授权的 ChatGPT 套餐或可用额度。你可以在 ChatGPT Settings → Usage 管理访问和用量。") }
     }
 }
+struct BookmarkRow: View {
+    @ObservedObject var workspace: Workspace
+    let bookmark: Bookmark
+    var body: some View {
+        HStack {
+            Button { workspace.open(name: bookmark.name, bookmark: bookmark) } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(bookmark.name, systemImage: "server.rack").lineLimit(1)
+                    Text(bookmark.host).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.buttonStyle(.plain)
+            Menu { actions } label: { Image(systemName: "ellipsis") }
+                .menuStyle(.borderlessButton).frame(width: 22).accessibilityLabel("书签菜单：" + bookmark.name)
+        }.padding(7).contextMenu { actions }
+    }
+    @ViewBuilder private var actions: some View {
+        Button("连接") { workspace.open(name: bookmark.name, bookmark: bookmark) }
+        Button("编辑 / 重命名") { workspace.editingBookmark = bookmark; workspace.bookmarkShown = true }
+        Menu("移动到文件夹") {
+            Button("未分类") { workspace.moveBookmark(bookmark.id, folder: nil) }
+            ForEach(workspace.folders) { folder in Button(folder.name) { workspace.moveBookmark(bookmark.id, folder: folder.id) } }
+        }
+        Button("删除书签", role: .destructive) { workspace.deleteBookmark(bookmark.id) }
+    }
+}
+struct BookmarkFolderSection: View {
+    @ObservedObject var workspace: Workspace
+    let folder: BookmarkFolder
+    @State private var expanded = true
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            ForEach(workspace.bookmarks.filter { $0.folderID == folder.id }) { BookmarkRow(workspace: workspace, bookmark: $0) }
+        } label: { Label(folder.name, systemImage: "folder").lineLimit(1) }
+            .contextMenu { Button("管理文件夹") { workspace.foldersShown = true } }
+    }
+}
+struct FolderManagerView: View {
+    @ObservedObject var workspace: Workspace
+    @Environment(\.dismiss) var dismiss
+    @State private var folders: [BookmarkFolder] = []
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack { Text("管理书签文件夹").font(.title2.bold()); Spacer(); Button("新建文件夹") { folders.append(BookmarkFolder()) } }
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach($folders) { $folder in
+                        HStack {
+                            Image(systemName: "folder")
+                            TextField("文件夹名称", text: $folder.name).textFieldStyle(.roundedBorder)
+                            Button("删除", role: .destructive) { folders.removeAll { $0.id == folder.id } }
+                        }
+                    }
+                }
+            }
+            Text("删除文件夹后，其中的书签移到未分类，不删除书签。修改名称后点击保存。")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("取消") { dismiss() }; Spacer()
+                Button("保存") { workspace.saveFolders(folders); dismiss() }.buttonStyle(.borderedProminent)
+                    .disabled(folders.contains { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            }
+        }.padding(24).frame(width: 500, height: 400).onAppear { folders = workspace.folders }
+    }
+}
+struct RenameChatView: View {
+    @ObservedObject var workspace: Workspace
+    let chat: Chat
+    @Environment(\.dismiss) var dismiss
+    @State private var title = ""
+    @FocusState private var focused: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("重命名聊天").font(.title2.bold())
+            TextField("聊天名称", text: $title).textFieldStyle(.roundedBorder).focused($focused)
+                .onSubmit { save() }
+            HStack {
+                Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("保存") { save() }.buttonStyle(.borderedProminent)
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || workspace.busy)
+            }
+        }.padding(24).frame(width: 400).onAppear { title = chat.name; focused = true }
+    }
+    private func save() {
+        guard !workspace.busy, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        workspace.renameChat(chat.id, title: title); dismiss()
+    }
+}
 struct BookmarkView: View {
     @ObservedObject var workspace: Workspace
     @Environment(\.dismiss) var dismiss
+    let existing: Bookmark?
     @State private var bookmark = Bookmark()
+    @State private var password = ""
+    @State private var formError = ""
+    @FocusState private var nameFocused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("新增 SSH 书签").font(.title2.bold())
-            Form {
-                TextField("名称", text: $bookmark.name)
-                TextField("主机 / SSH config 别名", text: $bookmark.host)
-                TextField("端口", value: $bookmark.port, formatter: NumberFormatter())
-                TextField("用户名（空则使用 SSH config）", text: $bookmark.user)
-                TextField("私钥路径（空则使用 Agent / config）", text: $bookmark.keyPath)
-                TextField("ProxyJump（如 user@gateway）", text: $bookmark.jump)
-                TextField("备注", text: $bookmark.notes)
-                Text("采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent、Known Hosts。密码只在终端提示中输入，不保存到书签。").font(.caption).foregroundStyle(.secondary)
+            Text(existing == nil ? "新增 SSH 书签" : "编辑 SSH 书签").font(.title2.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    field("名称") { TextField("例如：开发服务器", text: $bookmark.name).focused($nameFocused) }
+                    field("主机 / SSH config 别名") { TextField("主机名或 config 别名", text: $bookmark.host) }
+                    HStack(alignment: .top, spacing: 16) {
+                        field("端口") { TextField("22", value: $bookmark.port, formatter: NumberFormatter()) }.frame(width: 100)
+                        field("用户名", help: "留空使用 SSH config") { TextField("可选", text: $bookmark.user) }
+                    }
+                    field("文件夹") {
+                        Picker("文件夹", selection: $bookmark.folderID) {
+                            Text("未分类").tag(Optional<UUID>.none)
+                            ForEach(workspace.folders) { folder in Text(folder.name).tag(Optional(folder.id)) }
+                        }.labelsHidden()
+                    }
+                    field("登录方式") {
+                        Picker("登录方式", selection: Binding(get: { bookmark.authentication ?? (bookmark.keyPath.isEmpty ? .automatic : .key) }, set: { bookmark.authentication = $0 })) {
+                            ForEach(SSHAuthentication.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }.labelsHidden()
+                    }
+                    if bookmark.authentication == .password {
+                        field("密码", help: "保存到 macOS Keychain，不写入书签文件") { SecureField("SSH 登录密码", text: $password) }
+                    } else if bookmark.authentication == .key || (bookmark.authentication == nil && !bookmark.keyPath.isEmpty) {
+                        field("私钥路径", help: "私钥文件留在本机；加密私钥的口令由终端提示或 SSH Agent 处理") {
+                            HStack {
+                                TextField("~/.ssh/id_ed25519", text: $bookmark.keyPath)
+                                Button("选择…") {
+                                    let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
+                                    if panel.runModal() == .OK, let path = panel.url?.path { bookmark.keyPath = path }
+                                }
+                            }
+                        }
+                    }
+                    field("备注") { TextField("可选", text: $bookmark.notes) }
+                    Text("采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent 和 Known Hosts。保存的密码仅通过 SSH 认证组件使用；首次连接仍需确认主机指纹。")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 8)
             }
-            HStack { Button("取消") { dismiss() }; Spacer(); Button("保存") { do { _ = try bookmark.arguments(); workspace.bookmarks.append(bookmark); workspace.persist(); dismiss() } catch { workspace.error = error.localizedDescription } }.buttonStyle(.borderedProminent).disabled(bookmark.name.isEmpty || bookmark.host.isEmpty) }
-        }.padding(24).frame(width: 620)
+            if !formError.isEmpty { Text(formError).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+            Divider()
+            HStack {
+                Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("保存") {
+                    do { try workspace.saveBookmark(bookmark, password: password); dismiss() }
+                    catch { formError = error.localizedDescription }
+                }.buttonStyle(.borderedProminent).disabled(bookmark.name.isEmpty || bookmark.host.isEmpty)
+            }
+        }.textFieldStyle(.roundedBorder).padding(24).frame(width: 600, height: 640)
+            .onAppear { if let existing {
+                    bookmark = existing
+                    bookmark.authentication = existing.authentication ?? (existing.keyPath.isEmpty ? .automatic : .key)
+                    let load = Task.detached { try SSHPasswordStore.read(id: existing.id) }
+                    Task { do { let saved = try await load.value; if password.isEmpty { password = saved ?? "" } } catch { formError = error.localizedDescription } }
+                }; nameFocused = true }
+    }
+    private func field<Content: View>(_ title: String, help: String? = nil, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.subheadline.weight(.medium))
+            content().accessibilityLabel(title)
+            if let help {
+                Text(help).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 struct HistoryView: View {
@@ -356,5 +530,11 @@ struct ProviderCaption: View {
             Text(provider == .chatGPT ? (account.connected ? "Using ChatGPT plan" : "ChatGPT · Not connected") : provider.rawValue).font(.caption).foregroundStyle(.secondary)
             Text("Enter 发送 · ⌥Enter 换行").font(.system(size: 10)).foregroundStyle(.secondary)
         }
+    }
+}
+
+extension InterfaceTheme {
+    var colorScheme: ColorScheme? {
+        switch self { case .system: return nil; case .light: return .light; case .dark: return .dark }
     }
 }

@@ -12,5 +12,9 @@ codesign --verify --deep --strict "$VERIFY_STAGE/TermGPT.app"
 if [[ -n "${2:-}" ]]; then
     [[ "$(lipo -archs "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPT")" == "$2" ]] || { echo "发行架构不匹配"; exit 1; }
 fi
+[[ -x "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPTSSHAskpass" ]] || { echo "缺少 SSH 密码登录组件"; exit 1; }
+if [[ -n "${2:-}" ]]; then
+    [[ "$(lipo -archs "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPTSSHAskpass")" == "$2" ]] || { echo "SSH 组件架构不匹配"; exit 1; }
+fi
 file "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPT"
 echo 'ZIP 解压、应用格式与签名验证通过'

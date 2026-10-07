@@ -14,6 +14,7 @@ final class ChatTextView: NSTextView {
 struct ChatInput: NSViewRepresentable {
     @Binding var text: String
     var onSubmit: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: ChatInput
         init(_ parent: ChatInput) { self.parent = parent }
@@ -41,6 +42,10 @@ struct ChatInput: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let view = scroll.documentView as? ChatTextView else { return }
+        scroll.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
+        view.backgroundColor = .textBackgroundColor
+        view.textColor = .textColor
+        view.insertionPointColor = .textColor
         view.onSubmit = onSubmit
         if view.string != text && !view.hasMarkedText() { view.string = text }
     }

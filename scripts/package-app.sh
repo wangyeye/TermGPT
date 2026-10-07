@@ -19,6 +19,9 @@ fi
 PACKAGE_ARCH="$(lipo -archs "$APP_BINARY")"
 case "$PACKAGE_ARCH" in arm64|x86_64) ;; *) echo "不支持的发行架构"; exit 1;; esac
 cp -X "$APP_BINARY" "$APP/Contents/MacOS/TermGPT"
+ASKPASS_BINARY="$(dirname "$APP_BINARY")/TermGPTSSHAskpass"
+[[ -x "$ASKPASS_BINARY" ]] || { echo '缺少 SSH 密码认证组件'; exit 1; }
+cp -X "$ASKPASS_BINARY" "$APP/Contents/MacOS/TermGPTSSHAskpass"
 cp -X Assets/TermGPT.icns "$APP/Contents/Resources/TermGPT.icns"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -29,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>TermGPT</string>
 <key>CFBundleDisplayName</key><string>TermGPT</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.2.1</string>
-<key>CFBundleVersion</key><string>3</string>
+<key>CFBundleShortVersionString</key><string>0.3.0</string>
+<key>CFBundleVersion</key><string>5</string>
 <key>CFBundleIconFile</key><string>TermGPT</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -40,6 +43,7 @@ PLIST
 plutil -lint "$APP/Contents/Info.plist"
 # Finder/File Provider metadata in this workspace cannot be included in a signature.
 xattr -cr "$APP"
+codesign --force --sign - "$APP/Contents/MacOS/TermGPTSSHAskpass"
 codesign --force --sign - "$APP"
 codesign --verify --deep --strict "$APP"
 mkdir -p "$PWD/dist"

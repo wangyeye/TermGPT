@@ -1,6 +1,13 @@
 import Foundation
 import Security
 
+enum SSHAuthentication: String, Codable, CaseIterable {
+    case automatic = "SSH config / Agent", password = "密码", key = "私钥"
+}
+struct BookmarkFolder: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var name = "新文件夹"
+}
 struct Bookmark: Codable, Identifiable, Equatable {
     var id = UUID()
     var name = ""
@@ -8,14 +15,16 @@ struct Bookmark: Codable, Identifiable, Equatable {
     var port = 22
     var user = ""
     var keyPath = ""
-    var jump = ""
+    var folderID: UUID?
+    var authentication: SSHAuthentication?
     var notes = ""
     func arguments() throws -> [String] {
         guard !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }), !user.hasPrefix("-"), (1...65535).contains(port) else { throw AppError.message("主机、用户名或端口无效") }
         var a = ["-tt", "-p", String(port), "-o", "ServerAliveInterval=30"]
         if !user.isEmpty { a += ["-l", user] }
-        if !keyPath.isEmpty { a += ["-i", NSString(string: keyPath).expandingTildeInPath] }
-        if !jump.isEmpty { a += ["-J", jump] }
+        if !keyPath.isEmpty && (authentication == nil || authentication == .key) { a += ["-i", NSString(string: keyPath).expandingTildeInPath] }
+        a += ["-o", "ProxyJump=none", "-o", "ProxyCommand=none"]
+        if authentication == .password { a += ["-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password,keyboard-interactive", "-o", "NumberOfPasswordPrompts=1"] }
         return a + [host]
     }
 }
@@ -27,7 +36,28 @@ struct Message: Codable, Identifiable {
 struct Chat: Codable, Identifiable {
     var id = UUID()
     var name = "新聊天"
+    var nameIsCustom: Bool?
     var messages: [Message] = []
+}
+enum ChatActions {
+    static func rename(_ id: UUID, title: String, chats: inout [Chat]) -> Bool {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let index = chats.firstIndex(where: { $0.id == id }) else { return false }
+        chats[index].name = String(name.prefix(120)); chats[index].nameIsCustom = true
+        return true
+    }
+    static func delete(_ id: UUID, chats: inout [Chat], selected: inout UUID?) -> Bool {
+        guard let index = chats.firstIndex(where: { $0.id == id }) else { return false }
+        chats.remove(at: index)
+        if chats.isEmpty { chats.append(Chat()) }
+        if selected == id || !chats.contains(where: { $0.id == selected }) {
+            selected = chats[min(index, chats.count - 1)].id
+        }
+        return true
+    }
+}
+enum InterfaceTheme: String, Codable, CaseIterable {
+    case system = "跟随系统", light = "浅色", dark = "深色"
 }
 enum ProviderKind: String, Codable, CaseIterable {
     case chatGPT = "ChatGPT", openAI = "OpenAI API", ollama = "Ollama", lmStudio = "LM Studio", custom = "OpenAI-compatible"
@@ -47,10 +77,11 @@ struct Preferences: Codable {
     var shell = "/bin/zsh"
     var fontSize = 14.0
     var lightTerminal = false
+    var interfaceTheme = InterfaceTheme.system
     var saveMemory = true
     var redactBeforeSending = true
     init() {}
-    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, saveMemory, redactBeforeSending }
+    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, saveMemory, redactBeforeSending }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         endpoint = try c.decodeIfPresent(String.self, forKey: .endpoint) ?? endpoint
@@ -60,6 +91,7 @@ struct Preferences: Codable {
         shell = try c.decodeIfPresent(String.self, forKey: .shell) ?? shell
         fontSize = min(24, max(10, try c.decodeIfPresent(Double.self, forKey: .fontSize) ?? fontSize))
         lightTerminal = try c.decodeIfPresent(Bool.self, forKey: .lightTerminal) ?? lightTerminal
+        interfaceTheme = try c.decodeIfPresent(InterfaceTheme.self, forKey: .interfaceTheme) ?? .system
         saveMemory = try c.decodeIfPresent(Bool.self, forKey: .saveMemory) ?? saveMemory
         redactBeforeSending = try c.decodeIfPresent(Bool.self, forKey: .redactBeforeSending) ?? true
     }
@@ -116,6 +148,7 @@ enum Keychain {
 }
 struct SavedState: Codable {
     var bookmarks: [Bookmark]
+    var folders: [BookmarkFolder]?
     var chats: [Chat]
     var preferences: Preferences
 }

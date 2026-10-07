@@ -22,10 +22,10 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(Safety.needsTerminal("刚才 ESXi 为什么报错？", names: ["ESXi"]))
     }
     func testSSHArgumentsDoNotInvokeShell() throws {
-        let b = Bookmark(name: "Test", host: "server", port: 2222, user: "root", keyPath: "~/.ssh/key", jump: "root@gateway")
+        let b = Bookmark(name: "Test", host: "server", port: 2222, user: "root", keyPath: "~/.ssh/key")
         let args = try b.arguments()
         XCTAssertEqual(args.last, "server")
-        XCTAssertTrue(args.contains("root@gateway"))
+        XCTAssertFalse(args.contains("-J"))
         XCTAssertTrue(args.contains("2222"))
         var bad = b; bad.host = "-oProxyCommand=evil"; XCTAssertThrowsError(try bad.arguments())
         bad = b; bad.port = 0; XCTAssertThrowsError(try bad.arguments())
