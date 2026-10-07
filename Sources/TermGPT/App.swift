@@ -235,15 +235,20 @@ struct MessageView: View {
                 ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
                     if index % 2 == 0 { Text(.init(part)).textSelection(.enabled) }
                     else {
-                        let code = part.contains("\n") ? String(part.drop(while: { $0 != "\n" }).dropFirst()).trimmingCharacters(in: .newlines) : part
+                        let block = ReplyCodeBlock(part)
+                        let code = block.content
                         VStack(alignment: .leading, spacing: 10) {
                             Text(code).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                             HStack {
-                                Text(Safety.highRisk(code) ? L("需谨慎确认") : L("LOW")).font(.system(size: 10, weight: .bold)).foregroundStyle(Safety.highRisk(code) ? .orange : .green)
+                                if block.isShellCommand {
+                                    Text(Safety.highRisk(code) ? L("需谨慎确认") : L("LOW")).font(.system(size: 10, weight: .bold)).foregroundStyle(Safety.highRisk(code) ? .orange : .green)
+                                }
                                 Spacer()
                                 Button(L("复制")) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code, forType: .string) }
-                                Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || index == parts.count - 1)
-                                Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || index == parts.count - 1)
+                                if block.isShellCommand {
+                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || index == parts.count - 1)
+                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || index == parts.count - 1)
+                                }
                             }.font(.caption)
                         }.padding(12).background(Color.primary.opacity(0.055)).cornerRadius(8)
                     }
