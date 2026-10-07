@@ -10,13 +10,13 @@ final class WorkTerminal: LocalProcessTerminalView {
     }
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
-        let copy = NSMenuItem(title: "复制", action: #selector(copy(_:)), keyEquivalent: ""); copy.target = self; menu.addItem(copy)
+        let copy = NSMenuItem(title: L("复制"), action: #selector(copy(_:)), keyEquivalent: ""); copy.target = self; menu.addItem(copy)
         for title in ["Ask AI", "Explain", "Fix", "Generate command"] {
-            let item = NSMenuItem(title: title, action: #selector(askSelected(_:)), keyEquivalent: ""); item.target = self; menu.addItem(item)
+            let item = NSMenuItem(title: L(title), action: #selector(askSelected(_:)), keyEquivalent: ""); item.representedObject = title; item.target = self; menu.addItem(item)
         }
         return menu
     }
-    @objc func askSelected(_ item: NSMenuItem) { if let text = getSelection(), !text.isEmpty { ask?(item.title, text) } }
+    @objc func askSelected(_ item: NSMenuItem) { if let text = getSelection(), !text.isEmpty { ask?(L(item.representedObject as? String ?? item.title), text) } }
 }
 final class TerminalSession: ObservableObject, Identifiable, LocalProcessTerminalViewDelegate {
     let id = UUID()
@@ -42,6 +42,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
                 environment["SSH_ASKPASS"] = helper; environment["SSH_ASKPASS_REQUIRE"] = "force"
                 environment["DISPLAY"] = "TermGPT"; environment["TERMGPT_SSH_BOOKMARK_ID"] = bookmark.id.uuidString
                 environment["LC_ALL"] = "C"
+                environment["TERMGPT_UI_LANGUAGE"] = preferences.language.resolved().rawValue
             }
             view.startProcess(executable: "/usr/bin/ssh", args: args, environment: environment.map { "\($0.key)=\($0.value)" })
             status = "SSH 进程运行中"
@@ -88,7 +89,9 @@ struct RunProposal: Identifiable {
     @Published var foldersShown = false
     @Published var chats = [Chat()]
     @Published var chatID: UUID?
-    @Published var preferences = Preferences()
+    @Published var preferences = Preferences() {
+        didSet { if Localization.shared.selection != preferences.language { Localization.shared.selection = preferences.language } }
+    }
     @Published var input = ""
     @Published var busy = false
     @Published var notice = ""
@@ -105,12 +108,17 @@ struct RunProposal: Identifiable {
     var currentChat: Chat { chats.first { $0.id == chatID } ?? chats[0] }
     init() {
         if let state = DiskStore.load() { bookmarks = state.bookmarks; folders = state.folders ?? []; preferences = state.preferences; if !state.chats.isEmpty { chats = state.chats } }
+        Localization.shared.selection = preferences.language
         chatID = chats.first?.id
         newLocal()
     }
     func applyTerminalTheme(light: Bool) {
         preferences.lightTerminal = light
         sessions.forEach { $0.apply(preferences) }
+    }
+    func setLayout(bookmarks: Bool, chat: Bool) {
+        preferences.showBookmarks = bookmarks; preferences.showChat = chat
+        persist()
     }
     func persist() {
         do { try DiskStore.save(SavedState(bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
@@ -145,7 +153,7 @@ struct RunProposal: Identifiable {
         session.view.ask = { [weak self, weak session] action, text in
             guard let self, let session else { return }
             self.locked = session.id; self.contextMode = .selected; self.selectedContext = text
-            self.input = "\(action)：请分析选中的终端文本。"
+            self.input = L("%@：请分析选中的终端文本。", action)
             self.notice = "已关联所选文本，点击发送后提交给 AI"
         }
         do { try session.start(preferences); sessions.append(session); active = session.id } catch { self.error = error.localizedDescription }
@@ -200,7 +208,6 @@ struct RunProposal: Identifiable {
         chats[index].messages.append(last)
         let reply = Message(role: "assistant", content: "")
         chats[index].messages.append(reply)
-        let provider = OpenAIProvider(preferences: preferences, key: Keychain.read())
         task = Task { [weak self] in
             do {
                 let update: (String) async -> Void = { [weak self] chunk in
@@ -210,6 +217,7 @@ struct RunProposal: Identifiable {
                     guard let self else { throw CancellationError() }
                     try await self.chatGPT.stream(messages: messages, model: self.preferences.chatGPTModel, update: update)
                 } else {
+                    let provider = OpenAIProvider(preferences: self?.preferences ?? Preferences(), key: try APIKeyStore.read())
                     try await provider.stream(messages: messages, update: update)
                 }
             } catch { if !Task.isCancelled { self?.error = error.localizedDescription } }

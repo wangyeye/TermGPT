@@ -1,8 +1,10 @@
 # Security and privacy
 
 This repository contains source code and synthetic tests, not runtime data.
-Credentials belong in macOS Keychain. Never commit application state, terminal
-captures, SSH keys, environment files, access tokens or real chat exports.
+Credentials are stored in the private local `credentials.json` configuration,
+with directory/file permissions 0700/0600. JSON credentials are plain text.
+Never commit this file, application state, terminal captures, SSH keys,
+environment files, access tokens or real chat exports.
 
 Before publishing changes, run:
 

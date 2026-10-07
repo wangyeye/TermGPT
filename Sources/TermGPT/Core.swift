@@ -78,10 +78,13 @@ struct Preferences: Codable {
     var fontSize = 14.0
     var lightTerminal = false
     var interfaceTheme = InterfaceTheme.system
+    var language = InterfaceLanguage.system
+    var showBookmarks = true
+    var showChat = true
     var saveMemory = true
     var redactBeforeSending = true
     init() {}
-    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, saveMemory, redactBeforeSending }
+    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, language, showBookmarks, showChat, saveMemory, redactBeforeSending }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         endpoint = try c.decodeIfPresent(String.self, forKey: .endpoint) ?? endpoint
@@ -92,13 +95,16 @@ struct Preferences: Codable {
         fontSize = min(24, max(10, try c.decodeIfPresent(Double.self, forKey: .fontSize) ?? fontSize))
         lightTerminal = try c.decodeIfPresent(Bool.self, forKey: .lightTerminal) ?? lightTerminal
         interfaceTheme = try c.decodeIfPresent(InterfaceTheme.self, forKey: .interfaceTheme) ?? .system
+        language = try c.decodeIfPresent(InterfaceLanguage.self, forKey: .language) ?? .system
+        showBookmarks = try c.decodeIfPresent(Bool.self, forKey: .showBookmarks) ?? true
+        showChat = try c.decodeIfPresent(Bool.self, forKey: .showChat) ?? true
         saveMemory = try c.decodeIfPresent(Bool.self, forKey: .saveMemory) ?? saveMemory
         redactBeforeSending = try c.decodeIfPresent(Bool.self, forKey: .redactBeforeSending) ?? true
     }
 }
 enum AppError: LocalizedError {
     case message(String)
-    var errorDescription: String? { if case .message(let s) = self { return s }; return nil }
+    var errorDescription: String? { if case .message(let s) = self { return L(s) }; return nil }
 }
 enum ContextMode: String, CaseIterable {
     case auto = "Auto", off = "Off", selected = "Selected text", fifty = "Last 50 lines", twoHundred = "Last 200 lines", entire = "Entire session"
@@ -127,23 +133,6 @@ enum Safety {
     static func needsTerminal(_ question: String, names: [String]) -> Bool {
         let q = question.lowercased()
         return names.contains { !$0.isEmpty && q.contains($0.lowercased()) } || ["终端", "命令", "报错", "错误", "输出", "刚才", "这个", "ssh", "terminal", "error", "command", "output", "cpu", "ping", "网络", "温度", "磁盘"].contains { q.contains($0) }
-    }
-}
-enum Keychain {
-    static let service = "local.TermGPT.api"
-    static func read() -> String {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "provider", kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
-        var value: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &value) == errSecSuccess, let data = value as? Data else { return "" }
-        return String(decoding: data, as: UTF8.self)
-    }
-    static func write(_ key: String) throws {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "provider"]
-        if key.isEmpty { SecItemDelete(q as CFDictionary); return }
-        let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8)]
-        var status = SecItemUpdate(q as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound { status = SecItemAdd(q.merging(attributes) { _, b in b } as CFDictionary, nil) }
-        guard status == errSecSuccess else { throw AppError.message("Keychain 保存失败：\(status)") }
     }
 }
 struct SavedState: Codable {

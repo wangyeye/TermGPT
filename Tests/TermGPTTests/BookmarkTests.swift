@@ -26,15 +26,17 @@ final class BookmarkTests: XCTestCase {
         bookmark.authentication = .key; bookmark.keyPath = "~/.ssh/test-key"
         XCTAssertTrue(try bookmark.arguments().contains("-i"))
     }
-    func testSyntheticPasswordKeychainRoundTripAndRemoval() throws {
+    func testSyntheticPasswordJSONRoundTripAndRemoval() throws {
         let id = UUID()
-        defer { try? SSHPasswordStore.remove(id: id) }
-        XCTAssertNil(try SSHPasswordStore.read(id: id))
-        try SSHPasswordStore.write("fixture-password-not-real", id: id)
-        XCTAssertEqual(try SSHPasswordStore.read(id: id), "fixture-password-not-real")
-        try SSHPasswordStore.write("fixture-replacement-not-real", id: id)
-        XCTAssertEqual(try SSHPasswordStore.read(id: id), "fixture-replacement-not-real")
-        try SSHPasswordStore.remove(id: id)
-        XCTAssertNil(try SSHPasswordStore.read(id: id))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = CredentialStore(directory: directory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        XCTAssertNil(try SSHPasswordStore.read(id: id, store: store))
+        try SSHPasswordStore.write("fixture-password-not-real", id: id, store: store)
+        XCTAssertEqual(try SSHPasswordStore.read(id: id, store: store), "fixture-password-not-real")
+        try SSHPasswordStore.write("fixture-replacement-not-real", id: id, store: store)
+        XCTAssertEqual(try SSHPasswordStore.read(id: id, store: store), "fixture-replacement-not-real")
+        try SSHPasswordStore.remove(id: id, store: store)
+        XCTAssertNil(try SSHPasswordStore.read(id: id, store: store))
     }
 }

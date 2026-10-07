@@ -12,6 +12,7 @@ final class ChatTextView: NSTextView {
     }
 }
 struct ChatInput: NSViewRepresentable {
+    @ObservedObject private var localization = Localization.shared
     @Binding var text: String
     var onSubmit: () -> Void
     @Environment(\.colorScheme) private var colorScheme
@@ -34,7 +35,7 @@ struct ChatInput: NSViewRepresentable {
         view.autoresizingMask = [.width]
         view.textContainer?.widthTracksTextView = true
         view.delegate = context.coordinator
-        view.setAccessibilityLabel("聊天输入，Enter 发送，Option Enter 换行")
+        view.setAccessibilityLabel(L("聊天输入，Enter 发送，Option Enter 换行"))
         scroll.documentView = view
         scroll.hasVerticalScroller = true
         return scroll
@@ -42,6 +43,7 @@ struct ChatInput: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let view = scroll.documentView as? ChatTextView else { return }
+        view.setAccessibilityLabel(L("聊天输入，Enter 发送，Option Enter 换行"))
         scroll.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
         view.backgroundColor = .textBackgroundColor
         view.textColor = .textColor

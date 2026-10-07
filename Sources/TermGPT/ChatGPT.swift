@@ -88,25 +88,6 @@ struct ChatGPTVault: Codable {
     var selected: String?
     var welcomeShown = false
 }
-enum ChatGPTKeychain {
-    static let service = "local.TermGPT.chatgpt"
-    static func load() throws -> ChatGPTVault {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "accounts", kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return ChatGPTVault() }
-        guard status == errSecSuccess, let data = result as? Data else { throw AppError.message("无法读取 ChatGPT Keychain：\(status)") }
-        return try JSONDecoder().decode(ChatGPTVault.self, from: data)
-    }
-    static func save(_ vault: ChatGPTVault) throws {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "accounts"]
-        let values: [String: Any] = [kSecValueData as String: try JSONEncoder().encode(vault)]
-        var status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
-        if status == errSecItemNotFound { status = SecItemAdd(query.merging(values) { _, b in b } as CFDictionary, nil) }
-        guard status == errSecSuccess else { throw AppError.message("无法保存 ChatGPT Keychain：\(status)") }
-    }
-}
-
 @MainActor final class OAuthLoopback {
     private var listener: NWListener?
     private var continuation: CheckedContinuation<URL, Error>?
@@ -207,7 +188,7 @@ struct ChatGPTModel: Identifiable, Equatable {
     var account: ChatGPTRegistration? { vault.registrations.first { $0.clientID == vault.selected } }
     var connected: Bool { account?.connected == true }
     init() {
-        let load = Task.detached(priority: .userInitiated) { try ChatGPTKeychain.load() }
+        let load = Task.detached(priority: .userInitiated) { try ChatGPTConfigurationStore.load() }
         Task {
             do { vault = try await load.value } catch { message = error.localizedDescription }
             loadingAccount = false
@@ -220,7 +201,7 @@ struct ChatGPTModel: Identifiable, Equatable {
             let loop = OAuthLoopback(); loopback = loop
             defer { loop.cancel(); loopback = nil; connecting = false; loginTask = nil }
             do {
-                try ChatGPTKeychain.save(vault) // Persist host identity before first sign-in.
+                try ChatGPTConfigurationStore.save(vault) // Persist host identity before first sign-in.
                 let previous = newAccount ? nil : account
                 let state = try ChatGPTOAuth.random(), nonce = try ChatGPTOAuth.random(), verifier = try ChatGPTOAuth.random()
                 let redirect = try await loop.start()
@@ -230,7 +211,7 @@ struct ChatGPTModel: Identifiable, Equatable {
                 let authorization = try ChatGPTOAuth.callback(callback, state: state, registeredClient: previous?.clientID)
                 // Save issued registration even if code exchange requires a retry.
                 if !vault.registrations.contains(where: { $0.clientID == authorization.client }) {
-                    vault.registrations.append(ChatGPTRegistration(clientID: authorization.client)); if vault.selected == nil { vault.selected = authorization.client }; try ChatGPTKeychain.save(vault)
+                    vault.registrations.append(ChatGPTRegistration(clientID: authorization.client)); if vault.selected == nil { vault.selected = authorization.client }; try ChatGPTConfigurationStore.save(vault)
                 }
                 let tokens = try await tokenRequest(["grant_type": "authorization_code", "client_id": authorization.client, "code": authorization.code, "code_verifier": verifier, "redirect_uri": redirect, "resource": ChatGPTOAuth.resource])
                 guard let idToken = tokens["id_token"] as? String else { throw AppError.message("登录未返回 ID token") }
@@ -239,7 +220,7 @@ struct ChatGPTModel: Identifiable, Equatable {
                 var registration = try tokenRecord(tokens, client: authorization.client)
                 registration.subject = claims["sub"] as! String; registration.email = claims["email"] as? String ?? ""; registration.plan = ChatGPTOAuth.planName(claims)
                 guard registration.connected else { throw AppError.message("账户已验证，但尚未授权 ChatGPT plan usage。请重新连接并允许套餐使用。") }
-                replace(registration); vault.selected = registration.clientID; try ChatGPTKeychain.save(vault)
+                replace(registration); vault.selected = registration.clientID; try ChatGPTConfigurationStore.save(vault)
                 message = "已连接"; models = []; modelClient = nil
                 if !vault.welcomeShown { welcome = true }
                 await refreshModels()
@@ -249,11 +230,11 @@ struct ChatGPTModel: Identifiable, Equatable {
         }
     }
     func cancelLogin() { loginTask?.cancel(); loopback?.cancel() }
-    func acknowledgeWelcome() { welcome = false; vault.welcomeShown = true; do { try ChatGPTKeychain.save(vault) } catch { message = error.localizedDescription } }
+    func acknowledgeWelcome() { welcome = false; vault.welcomeShown = true; do { try ChatGPTConfigurationStore.save(vault) } catch { message = error.localizedDescription } }
     func select(_ client: String) {
         guard !connecting else { return }
         refreshTask?.cancel(); refreshTask = nil; vault.selected = client; models = []; modelClient = nil
-        do { try ChatGPTKeychain.save(vault) } catch { message = error.localizedDescription }
+        do { try ChatGPTConfigurationStore.save(vault) } catch { message = error.localizedDescription }
         Task { await refreshModels() }
     }
     private func replace(_ record: ChatGPTRegistration) {
@@ -298,7 +279,7 @@ struct ChatGPTModel: Identifiable, Equatable {
             if updated.idToken.isEmpty { updated.idToken = old.idToken }
             try Task.checkCancellation()
             guard vault.selected == old.clientID, account?.refreshToken == old.refreshToken else { throw CancellationError() }
-            replace(updated); try ChatGPTKeychain.save(vault); return updated
+            replace(updated); try ChatGPTConfigurationStore.save(vault); return updated
         }
         refreshTask = task
         defer { refreshTask = nil }
@@ -365,7 +346,7 @@ struct ChatGPTModel: Identifiable, Equatable {
         }
         current.accessToken = ""; current.refreshToken = ""; current.idToken = ""; current.scope = ""; current.expiresAt = .distantPast
         replace(current); models = []; modelClient = nil
-        do { try ChatGPTKeychain.save(vault); message = revoked ? "已断开连接" : "本机已断开；远端撤销未确认，可在 ChatGPT Settings 中移除应用访问。" } catch { message = "Keychain 清除失败，请重试：\(error.localizedDescription)" }
+        do { try ChatGPTConfigurationStore.save(vault); message = revoked ? "已断开连接" : "本机已断开；远端撤销未确认，可在 ChatGPT Settings 中移除应用访问。" } catch { message = "配置清除失败，请重试：\(error.localizedDescription)" }
     }
 }
 

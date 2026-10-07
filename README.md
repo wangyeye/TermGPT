@@ -1,34 +1,38 @@
 # TermGPT
 
-原生 macOS 终端与 AI 聊天工作台。使用 SwiftUI、AppKit 和 SwiftTerm；终端独立运行，AI 可按需读取用户选择的终端上下文。
+**English** | [简体中文](README.zh-CN.md)
 
-## 下载
+A native macOS terminal and AI chat workbench built with SwiftUI, AppKit and SwiftTerm. Terminals run independently; AI receives only the context selected for a request.
 
-从 [GitHub Releases](https://github.com/wangyeye/TermGPT/releases) 下载 macOS 13+ 安装包：
+## Download
 
-- Apple Silicon（M1/M2/M3 等）：`TermGPT-macOS-arm64.zip`
-- Intel Mac：`TermGPT-macOS-x86_64.zip`
+Download macOS 13+ packages from [GitHub Releases](https://github.com/wangyeye/TermGPT/releases):
 
-解压后将 `TermGPT.app` 拖入 Applications。提供 SHA256SUMS 校验文件。应用暂未 Developer ID 签名或公证；签名验证不等于 Gatekeeper 已批准。
+- Apple Silicon: `TermGPT-macOS-arm64.zip`
+- Intel Mac: `TermGPT-macOS-x86_64.zip`
+
+Extract the ZIP and move `TermGPT.app` into Applications. Releases include `SHA256SUMS`. Apps use ad-hoc signing and are not Developer ID signed or notarized. Signature verification does not imply Gatekeeper approval. Intel builds are cross-compiled and architecture-checked; physical Intel Mac testing is pending.
 
 ![TermGPT icon](Assets/AppIcon.png)
 
-## 功能
+## Features
 
-- 真实 PTY 本地终端，支持 ANSI、回滚、交互式 SSH 和 vim/top。
-- 多终端标签、SSH 书签编辑、重命名、删除、文件夹分组、密码或私钥登录，使用系统 OpenSSH。
-- 独立多聊天，支持重命名、删除、流式回复、取消、历史保存与导出。
-- ChatGPT 为首选；OpenAI API、Ollama、LM Studio 和兼容接口位于 Advanced / Other Providers。
-- 整体主题支持跟随系统、浅色与深色，覆盖界面、弹窗、输入框和终端。
-- 上下文模式：Auto、Off、选中文本、最近 50/200 行、整个会话；支持固定上下文。
-- 终端右键 Ask AI / Explain / Fix / Generate command。
-- 代码块支持复制、填入和执行。低风险单行命令直接执行，未知或高风险命令需要点击“确认执行”，不需输入 RUN。
-- 发送前自动脱敏可在设置中开启或关闭，发送时按设置后台处理，无确认弹窗。
-- ChatGPT 令牌和 API Key 存储在 macOS Keychain。
+- Real PTY local terminals with ANSI rendering, scrollback, interactive SSH and programs such as vim/top.
+- Multiple terminal tabs and editable SSH bookmarks, folders, password or private-key authentication through system OpenSSH.
+- Multiple chats with rename/delete, streaming replies, cancellation, optional local history and export.
+- ChatGPT as the preferred provider; OpenAI API, Ollama, LM Studio and compatible endpoints under Advanced / Other Providers.
+- Top-right layout controls to show/hide bookmarks and chat, focus on the terminal, or restore the default layout. Layout persists.
+- English and Chinese UI. Choose Follow System, English or 中文. Chinese system languages use Chinese; other system languages fall back to English.
+- System, light and dark appearance across the interface, dialogs, chat input and terminal.
+- Context modes: Auto, Off, selected text, last 50/200 lines or the entire session, with pinned context.
+- Terminal context menu: Ask AI, Explain, Fix and Generate command.
+- Code actions: copy, insert or run. Low-risk single-line commands run directly; unknown/high-risk commands require Confirm & Run without typing RUN.
+- Optional automatic redaction before sending, without a confirmation dialog.
+- ChatGPT login data, API keys and saved SSH passwords stored in local JSON configuration without Keychain prompts.
 
-## 环境检查与构建
+## Check the environment and build
 
-需要 macOS 13+、Swift 5.9+、Xcode Command Line Tools、系统 SSH 和 zsh。测试需要完整 Xcode 的 XCTest；当前测试脚本定位标准 `/Applications/Xcode.app`。构建不需要 Rust、Node 或 npm，SwiftTerm 已随源码提供。
+Requires macOS 13+, Swift 5.9+, Xcode Command Line Tools, system SSH and zsh. Tests require full Xcode with XCTest; scripts locate the standard `/Applications/Xcode.app`. No Rust, Node or npm is needed. SwiftTerm is vendored.
 
 ```bash
 cd TermGPT
@@ -37,84 +41,87 @@ cd TermGPT
 ./scripts/run.sh
 ```
 
-输出为 `dist/TermGPT.app` 和 `dist/TermGPT-macOS-arm64.zip`。发行包分别提供 arm64 和 x86_64；Intel 包完成交叉编译和架构检查，尚未在实体 Intel Mac 实测。App 使用本地 ad-hoc 签名，没有 Developer ID 签名或公证。环境脚本会在缺少依赖时退出，不更改系统默认工具链或接受 Xcode 许可。
+Output: `dist/TermGPT.app` and an architecture-specific ZIP. Scripts stop if dependencies are missing; they do not change the default toolchain or accept Xcode licenses. Packaging signs in a temporary directory to avoid file-sync metadata. If your checkout uses file synchronization, extract the ZIP into a local directory before launching.
 
-若工作目录由文件同步服务管理，建议解压 ZIP 到本机目录后使用；脚本在临时目录签名，避免文件同步元数据影响签名。
+## Use
 
-## 使用
+1. Use the local shell immediately. Add SSH bookmarks with `+`; their `…` or context menu supports edit, delete and move. The folder button opens folder management. Authentication can use SSH config / Agent, a saved password or a private key. No jump-host feature is provided, and old jump-host fields are ignored.
+2. Open Settings and choose Continue with ChatGPT. Sign in and authorize plan usage in the system browser. The service determines plan, allowance and model access; missing plan names are never guessed to be Plus.
+3. Configure other providers under Advanced / Other Providers. OpenAI API needs its own key and billing. Ollama defaults to `http://127.0.0.1:11434/v1`; LM Studio to `http://127.0.0.1:1234/v1`. Start the local service and enter an available model name.
+4. Enter sends chat; Option+Enter inserts a new line. Confirming an IME candidate does not send.
+5. Rename or delete chats with `…` or their context menu. Custom names are preserved. Deleting the selected chat selects a neighbor; deleting the last creates a blank chat. These actions are disabled during a reply.
+6. Select Context to control what is included. Auto is a heuristic; use Off or an explicit mode when you need precise control.
+7. In Terminal & Privacy, select appearance and redaction. Redaction defaults to on. Turning it off sends messages, history and selected terminal context unchanged to the current provider.
+8. The top-right left/right sidebar buttons control bookmarks and chat. The grid menu restores the default layout; the rectangle focuses on the terminal. Hiding chat keeps its history and any ongoing reply. Settings remains accessible through Cmd+,. Choose Language and Save to apply it immediately. User names, chat contents and terminal output are not translated.
+9. AI never executes commands by itself. Insert does not send Enter. Run targets the visible terminal and clears the normal shell input line first. Do not run commands while the terminal is inside a password prompt, vim or another interactive program.
 
-1. 启动后直接使用本地 Shell。点击 SSH 书签旁的 `+` 添加主机；每项的 `…` / 右键菜单可编辑、删除和移动到文件夹，文件夹按钮用于新建、改名和删除分组。登录方式可选 SSH config / Agent、保存密码或私钥文件。密码只保存在 Keychain，首次连接仍需确认主机指纹；不提供跳板机功能，旧跳板机字段忽略。
-2. 打开设置，点击 Continue with ChatGPT，在系统浏览器完成登录和套餐授权。服务决定套餐、额度和模型权限；未返回套餐名时不会推测为 Plus。
-3. 其他供应商在 Advanced / Other Providers 配置。OpenAI API 需要独立密钥；Ollama 默认 `http://127.0.0.1:11434/v1`，LM Studio 默认 `http://127.0.0.1:1234/v1`，本地服务需先启动并填写实际模型名。
-4. 在聊天输入框按 Enter 发送、Option+Enter 换行。中文输入法确认候选时不会发送。
-5. 聊天列表每项的 `…` 菜单或右键菜单可重命名与删除。自定义名称保留，删除当前聊天后切换到相邻聊天，删除最后一项会创建空白聊天；正在回复时操作暂不可用。
-6. 用 Context 选择本次需要附带的内容。Auto 是启发式判断；明确控制发送范围时使用 Off 或手动模式。
-7. 在 Terminal & Privacy 选择跟随系统 / 浅色 / 深色主题，保存后应用并持久化。也可在此设置“发送前自动脱敏”，保存后生效。默认开启；关闭后消息、历史和所选终端上下文会原样发送给当前供应商。
-8. AI 不会自行执行命令。“填入”不发送 Enter；“执行”针对当前可见终端，发送前清除正常 Shell 输入行。不要在密码提示、vim 或其他交互程序中点击执行。
+ChatGPT Auto chooses the first visible server model; it is not the ChatGPT website's automatic routing. OAuth and Responses use official interfaces, with availability and authorization controlled by the service. References: [sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference), [sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions).
 
-ChatGPT 的 Auto 选择服务器模型目录首个可见模型，不等同于 ChatGPT 网页自动路由。连接与推理使用官方 OAuth 和 Responses 接口；服务可用性及授权由官方服务控制。实现参考：[登录](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)、[模型和推理](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)、[会话管理](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)。
+## Shortcuts
 
-## 快捷键
-
-| 快捷键 | 功能 |
+| Shortcut | Action |
 | --- | --- |
-| Cmd+T | 新建终端 |
-| Cmd+W | 关闭终端并结束进程 |
-| Cmd+Shift+N | 新建聊天 |
-| Cmd+, | 设置 |
-| Cmd+F | 终端历史搜索 |
-| Enter / Cmd+Enter | 发送聊天 |
-| Option+Enter | 换行 |
-| Cmd+C / Cmd+V | 终端复制 / 粘贴 |
+| Cmd+T | New terminal |
+| Cmd+W | Close terminal and end its process |
+| Cmd+Shift+N | New chat |
+| Cmd+, | Settings |
+| Cmd+F | Terminal history/search |
+| Cmd+Control+B / J | Toggle bookmarks / chat |
+| Enter / Cmd+Enter | Send chat |
+| Option+Enter | New line |
+| Cmd+C / Cmd+V | Terminal copy/paste |
 
-## 数据与隐私
+## Data and privacy
 
-- 项目源码不包含账户、密钥、真实聊天、SSH 配置或终端记录。
-- SSH 密码保存在 Keychain service `local.TermGPT.ssh-password`，书签 JSON 不包含密码。随 App 提供的 `TermGPTSSHAskpass` 仅在 OpenSSH 密码认证时读取对应书签的密码，不通过参数或环境传递密码。主机指纹需人工确认；加密私钥口令和多因素认证建议使用 SSH Agent / 手工登录，保存密码模式不支持任意 OTP 提示。系统可能首次询问认证组件的 Keychain 访问权限。
-- ChatGPT 凭据保存在 Keychain service `local.TermGPT.chatgpt`；API Key 在 `local.TermGPT.api`。
-- 设置、书签及可选聊天保存在 `~/Library/Application Support/TermGPT/workspace.json`，目录权限 0700、文件权限 0600。关闭保存聊天后，持久化文件不再包含聊天。
-- OAuth 使用 PKCE、state、nonce 和签名验证；回调仅监听 127.0.0.1，有五分钟超时。Disconnect 清除本地令牌并尝试远程撤销。不会读取 ChatGPT 网站历史聊天。
-- 终端回滚在内存中保存，最多 10,000 行；发送过的上下文可能随聊天保存。导出默认脱敏。
-- 脱敏仅匹配常见格式，不保证识别所有秘密。关闭脱敏意味着所选供应商会接收到原文。
-- 风险分类仅提供有限保护，不能证明命令安全或终端当前处于 Shell 提示符。
+- Source and release packages exclude accounts, credentials, real chats, SSH configuration and terminal logs.
+- Credentials are stored as plain JSON in `~/Library/Application Support/TermGPT/credentials.json`, with directory/file permissions 0700/0600. It contains `chatGPT`, `apiKey` and `sshPasswords` keyed by bookmark UUID. Writes are atomic; malformed configuration is not silently replaced. This file must remain private and is excluded from Git/export/release packaging.
+- The SSH helper reads the matching password from this JSON configuration, never from arguments or environment variables. Host verification remains manual. Use SSH Agent or manual authentication for encrypted key passphrases and arbitrary OTP prompts.
+- v0.4 does not read or migrate old Keychain records. Reconnect ChatGPT and re-enter any API key or saved SSH password once; new credentials are saved in JSON. Existing bookmarks, folders, chats and preferences remain available.
+- Preferences, bookmarks and optional chats are stored in `~/Library/Application Support/TermGPT/workspace.json`, with directory/file permissions 0700/0600. Disabling chat storage excludes chats from the persisted file.
+- OAuth uses PKCE, state, nonce and signature verification. Its callback listens only on 127.0.0.1 and times out after five minutes. Disconnect removes local tokens and attempts remote revocation. ChatGPT website history is not read.
+- Terminal scrollback stays in memory, up to 10,000 lines. Sent context can remain in saved chats. Export redacts by default.
+- Redaction recognizes common formats, not every secret. Disabling it sends original content to the chosen provider.
+- Command risk classification offers limited protection; it cannot prove a command safe or verify that the terminal is at a shell prompt.
 
-## 测试
+## Test
 
 ```bash
 ./scripts/test-with-fixture.sh
 ./scripts/verify-package.sh
 ```
 
-第一条检查 Python 3/curl 并启动仅监听本机的固定 SSE 模拟服务，运行测试后关闭服务；不使用真实密钥。测试覆盖 PTY、上下文、SSH 参数、脱敏设置、输入快捷键、OAuth 回调、PKCE、签名验证及配置迁移。第二条独立解压发行 ZIP，检查 plist、架构和签名。
+The first checks Python 3/curl, starts a loopback-only synthetic SSE provider, runs XCTest and cleans up the provider. No real keys are used. Coverage includes PTY, context, SSH arguments/JSON credentials and file permissions, redaction, input shortcuts, OAuth callbacks/PKCE/signatures, language fallback and preference migration. The second independently extracts a release ZIP and verifies plist, architecture and signature.
 
-自动测试不等于真实账户、真实模型、所有 macOS 版本或真实 SSH 主机都已验证。本地开发记录、测试输出和构建缓存不提交至开源仓库。
+Automated checks do not establish compatibility with every account, model, macOS version or SSH host. Development logs, test output and caches stay outside the public repository.
 
-## 脚本与目录
+## Source and scripts
 
-| 路径 | 作用 / 使用 |
+| Path | Purpose / use |
 | --- | --- |
-| `Sources/TermGPT` | 界面、PTY、聊天、OAuth、存储和输入框 |
-| `Tests/TermGPTTests` | 合成数据与本机集成测试 |
-| `Assets` | 图标源 PNG 及 icns 生成说明 |
-| `Vendor/SwiftTerm` | 已固定的终端库及原始许可证 |
-| `scripts/check-environment.sh` | 使用前检查系统与依赖 |
-| `scripts/audit-release.py` | Python 3 检查 ARM/Intel ZIP 文件白名单、个人路径、典型凭据及图标元数据，失败时停止发布 |
-| `scripts/build-release.sh` | 从干净 Git 提交在临时目录构建 ARM/Intel 包，检查架构、签名和个人路径，生成校验和 |
-| `scripts/build.sh` | 编译 release 后打包 |
-| `scripts/package-app.sh` | 从 release 程序组装、签名 App 和 ZIP |
-| `scripts/run.sh` | 启动 App，缺少 App 时先构建 |
-| `scripts/test.sh` | 检查环境并执行 XCTest |
-| `scripts/test-with-fixture.sh` | 自动启动和清理本机模拟 API 后测试 |
-| `scripts/mock-provider.py` | 手动启动固定 SSE 服务，用 Ctrl+C 停止 |
-| `scripts/toolchain.sh` | 供构建/测试引用，定位宏插件、XCTest 及缓存 |
-| `scripts/make-icon.sh` | 检查 sips/iconutil，生成 icns，然后重新 build |
-| `scripts/update-provider-ui.py` | 历史源码迁移辅助，已应用时退出，正常使用无需运行 |
-| `scripts/export-public.py` | 按白名单生成独立开源目录，默认输出到项目同级的 TermGPT-open-source |
-| `scripts/audit-public.py` | 检查发布目录或 Git 跟踪文件中的个人路径、凭据模式、禁止文件和图标元数据；有发现则退出失败 |
+| `Sources/TermGPT` | UI, localization, PTY, chat, OAuth, storage and input |
+| `Sources/TermGPTSSHAskpass` | SSH password authentication and host verification helper |
+| `Tests/TermGPTTests` | Synthetic unit and local integration tests |
+| `Assets` | Icon source PNG and ICNS generation instructions |
+| `Vendor/SwiftTerm` | Pinned terminal library and upstream license |
+| `scripts/check-environment.sh` | Check OS and dependencies before use |
+| `scripts/build.sh` | Build release executables and package |
+| `scripts/package-app.sh` | Assemble, sign and ZIP a release app |
+| `scripts/run.sh` | Launch the app; build first if missing |
+| `scripts/test.sh` | Check environment and run XCTest |
+| `scripts/test-with-fixture.sh` | Start/clean up the local mock API and test |
+| `scripts/mock-provider.py` | Run the fixed SSE fixture manually; Ctrl+C stops it |
+| `scripts/toolchain.sh` | Locate macro plugins, XCTest and build caches |
+| `scripts/make-icon.sh` | Check sips/iconutil and generate ICNS before rebuilding |
+| `scripts/update-provider-ui.py` | Historical provider UI migration; no normal build use |
+| `scripts/migrate-bilingual-ui.py` | One-time v0.4 bilingual migration; checks source/Python 3 and stops if already applied; no normal build use |
+| `scripts/export-public.py` | Create a fresh allowlisted source export, including both READMEs |
+| `scripts/audit-public.py` | Read-only source checks for personal paths, credential patterns, excluded files and image metadata |
+| `scripts/build-release.sh` | Build ARM/Intel from a clean commit, verify and generate checksums |
+| `scripts/audit-release.py` | Verify release ZIP allowlists, personal paths, credential patterns and icon metadata; stop on findings |
 
-所有处理脚本均保存在项目内。运行 Python 脚本前用 `python3 --version` 检查 Python 3；发布脚本还检查 Git、输入目录和输出路径。
+All processing scripts live in this checkout. Run `python3 --version` before Python scripts. Release/export scripts also check Git, input directories and output paths.
 
-## 开源发布
+## Publish a source export
 
 ```bash
 python3 --version
@@ -123,14 +130,12 @@ cd ../TermGPT-open-source
 python3 scripts/audit-public.py
 ```
 
-ICNS 可能由系统工具添加元数据，因此发布只包含经检查的 PNG，构建时生成 ICNS。
+Exports include checked PNG sources; ICNS is generated at build time because system tools can add metadata. Exports exclude build output, logs, the original PRD, local validation notes, user settings, screenshots and Git history. Use a separate Git repository for the export and avoid `git add .` in a parent directory. Audits are not a professional secret scanner or security certification; review the final file list and diff.
 
-导出不复制 `.build`、`dist`、日志、原始需求书、本地验证记录、用户配置、截图或任何 Git 历史。发布目录使用独立 Git 仓库；不要在上级目录执行 `git add .`。审查脚本不是专业秘密扫描器或安全认证，发布前仍应人工查看最终文件清单与差异。
+For dual-architecture releases, commit first and run `./scripts/build-release.sh`. It checks Git, Python 3 and the build environment without reading accounts or runtime configuration.
 
-## 范围与许可证
+## Scope and license
 
-尚未实现分屏、多终端联合上下文、Agent 循环、精确命令块、SFTP、MCP、SQLite、多层文件夹和原生 Anthropic/Gemini 协议。
+Not implemented: split terminals, combined multi-terminal context, an agent loop, exact command blocks, SFTP, MCP, SQLite, nested bookmark folders or native Anthropic/Gemini protocols.
 
-TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`，保留其 MIT License 和版权声明；本地 Package.swift 简化为 macOS 库，无远程依赖；上游调试路径改为动态主目录，避免个人绝对路径。图标由 AI 生成，包含终端提示符和星光，不包含第三方商标。项目不是 OpenAI 官方产品。
-
-维护者构建双架构发行包：先提交源码，再运行 `./scripts/build-release.sh`。脚本检查 Git、Python 3 和构建环境，不读取账户、Keychain 或运行配置。
+MIT licensed. SwiftTerm upstream v1.9.0, commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`, retains its MIT license and copyright notices. Its local manifest is a macOS-only library with no remote dependencies; debug paths use the dynamic home directory. The AI-generated icon depicts a terminal prompt and sparkles without third-party trademarks. TermGPT is not an official OpenAI product.

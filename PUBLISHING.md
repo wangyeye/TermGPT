@@ -9,8 +9,8 @@ MIT licenses, documentation and the reviewed PNG icon source.
 
 Excluded: local paths and local validation notes, original requirements document,
 logs, build caches, executables/ZIPs, generated ICNS metadata, screenshots,
-application state, account records, SSH configuration, Keychain data and secrets.
-The export process never reads Keychain or the app's runtime state directory.
+application state, account records, SSH configuration, credential JSON and secrets.
+The export process never reads the app's runtime state directory.
 
 `export-public.py` uses an explicit allowlist. `audit-public.py` checks forbidden
 files, personal home paths, first-party email addresses, private network addresses,

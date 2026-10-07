@@ -16,7 +16,7 @@ if out.exists():
     raise SystemExit('Output already exists; choose a fresh directory with --output. Nothing overwritten.')
 if out == ROOT or ROOT in out.parents:
     raise SystemExit('Output must be outside the input source directory.')
-roots = ['README.md', 'LICENSE', 'SECURITY.md', 'PUBLISHING.md', '.gitignore', 'Package.swift', 'Sources', 'Tests',
+roots = ['README.md', 'README.zh-CN.md', 'LICENSE', 'SECURITY.md', 'PUBLISHING.md', '.gitignore', 'Package.swift', 'Sources', 'Tests',
          'Assets', 'scripts', 'Vendor/SwiftTerm/Package.swift',
          'Vendor/SwiftTerm/LICENSE', 'Vendor/SwiftTerm/Sources/SwiftTerm']
 files = []

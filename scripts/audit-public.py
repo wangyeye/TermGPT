@@ -34,7 +34,7 @@ checks = {
     'private-key-material': re.compile(r'-----BEGIN [A-Z ]*PRIVATE KEY-----\s+[A-Za-z0-9+/=]{64,}'),
 }
 forbidden_parts = {'.build', 'dist', '.swiftpm', '__pycache__', '.DS_Store', 'xcuserdata'}
-forbidden_names = {'PRD.md', 'VALIDATION.md', 'workspace.json', '.env'}
+forbidden_names = {'PRD.md', 'VALIDATION.md', 'workspace.json', 'credentials.json', '.env'}
 issues = []
 manifest = []
 for path in files:
