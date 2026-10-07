@@ -165,6 +165,17 @@ struct RunProposal: Identifiable {
         if locked == id { locked = nil }
         if active == id { active = sessions.last?.id }
     }
+    func closeAllTerminals() {
+        for id in sessions.map(\.id) { close(id) }
+    }
+    func closeRight(of id: UUID) {
+        for target in TerminalTabOrder.right(of: id, in: sessions.map(\.id)) { close(target) }
+    }
+    func moveTerminal(_ id: UUID, to target: UUID) {
+        let order = TerminalTabOrder.moving(id, to: target, in: sessions.map(\.id))
+        let byID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+        sessions = order.compactMap { byID[$0] }
+    }
     func newChat() { let c = Chat(); chats.append(c); chatID = c.id; persist() }
     func renameChat(_ id: UUID, title: String) {
         guard !busy, ChatActions.rename(id, title: title, chats: &chats) else { return }

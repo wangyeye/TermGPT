@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 enum TermGPTIcon {
     static let image: NSImage = Bundle.main.url(forResource: "TermGPT", withExtension: "icns").flatMap { NSImage(contentsOf: $0) } ?? NSApp.applicationIconImage
@@ -36,6 +37,7 @@ struct MainView: View {
     @State private var renameTarget: Chat?
     @State private var deleteTarget: Chat?
     @State private var scrollToLatestRequest = 0
+    @State private var draggedTerminal: UUID?
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         VStack(spacing: 0) {
@@ -95,10 +97,10 @@ struct MainView: View {
             HStack { Text(L("SSH 书签")).font(.headline); Spacer(); Button { workspace.foldersShown = true } label: { Image(systemName: "folder.badge.gearshape") }.buttonStyle(.plain).help(L("管理文件夹")); Button { workspace.editingBookmark = nil; workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    Button { workspace.newLocal() } label: { Label(L("Local Shell"), systemImage: "laptopcomputer") }.buttonStyle(.plain).padding(.vertical, 8)
+                    Button { workspace.newLocal() } label: { Label(L("Local Shell"), systemImage: "laptopcomputer") }.buttonStyle(.plain).padding(.leading, 18).padding(.vertical, 8)
                     ForEach(workspace.folders) { folder in BookmarkFolderSection(workspace: workspace, folder: folder) }
                     ForEach(workspace.bookmarks.filter { item in item.folderID == nil || !workspace.folders.contains(where: { $0.id == item.folderID }) }) { bookmark in
-                        BookmarkRow(workspace: workspace, bookmark: bookmark)
+                        BookmarkRow(workspace: workspace, bookmark: bookmark).padding(.leading, 11)
                     }
                     if workspace.bookmarks.isEmpty { Text(L("添加主机书签后点击连接。SSH 密码及主机指纹确认会在真实终端中显示。")).font(.caption).foregroundStyle(.secondary).padding(.vertical, 10) }
                 }
@@ -135,7 +137,20 @@ struct MainView: View {
         VStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
-                    ForEach(workspace.sessions) { session in TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) }) }
+                    ForEach(workspace.sessions) { session in
+                        TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
+                            .contextMenu {
+                                Button(L("关闭当前终端")) { workspace.close(session.id) }
+                                Button(L("关闭右侧标签页")) { workspace.closeRight(of: session.id) }
+                                    .disabled(workspace.sessions.last?.id == session.id)
+                                Button(L("关闭全部标签页")) { workspace.closeAllTerminals() }
+                            }
+                            .onDrag {
+                                draggedTerminal = session.id
+                                return NSItemProvider(item: Data(session.id.uuidString.utf8) as NSData, typeIdentifier: TerminalTabDrop.type.identifier)
+                            }
+                            .onDrop(of: [TerminalTabDrop.type], delegate: TerminalTabDrop(target: session.id, workspace: workspace, dragged: $draggedTerminal))
+                    }
                     Button { workspace.newLocal() } label: { Image(systemName: "plus") }.buttonStyle(.plain).padding(10)
                 }.padding(6)
             }.frame(height: 47)
@@ -422,10 +437,22 @@ struct BookmarkFolderSection: View {
     let folder: BookmarkFolder
     @State private var expanded = true
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            ForEach(workspace.bookmarks.filter { $0.folderID == folder.id }) { BookmarkRow(workspace: workspace, bookmark: $0) }
-        } label: { Label(folder.name, systemImage: "folder").lineLimit(1) }
-            .contextMenu { Button(L("管理文件夹")) { workspace.foldersShown = true } }
+        VStack(alignment: .leading, spacing: 4) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold)).frame(width: 12)
+                    Label(folder.name, systemImage: "folder").lineLimit(1)
+                    Spacer(minLength: 0)
+                }.contentShape(Rectangle()).padding(.vertical, 8)
+            }.buttonStyle(.plain)
+                .accessibilityValue(expanded ? L("已展开") : L("已折叠"))
+                .contextMenu { Button(L("管理文件夹")) { workspace.foldersShown = true } }
+            if expanded {
+                ForEach(workspace.bookmarks.filter { $0.folderID == folder.id }) {
+                    BookmarkRow(workspace: workspace, bookmark: $0).padding(.leading, 36)
+                }
+            }
+        }
     }
 }
 struct FolderManagerView: View {
