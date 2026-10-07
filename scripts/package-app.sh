@@ -1,0 +1,44 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+./scripts/check-environment.sh
+PACKAGE_STAGE="$(mktemp -d /private/tmp/termgpt-package.XXXXXX)"
+trap 'rm -rf "$PACKAGE_STAGE"' EXIT
+APP="$PACKAGE_STAGE/TermGPT.app"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+if [[ -x .build/out/Products/Release/TermGPT ]]; then
+    APP_BINARY="$PWD/.build/out/Products/Release/TermGPT"
+elif [[ -x .build/release/TermGPT ]]; then
+    APP_BINARY="$PWD/.build/release/TermGPT"
+else
+    echo '缺少 release 程序，请先运行 scripts/build.sh'; exit 1
+fi
+cp -X "$APP_BINARY" "$APP/Contents/MacOS/TermGPT"
+cp -X Assets/TermGPT.icns "$APP/Contents/Resources/TermGPT.icns"
+cat > "$APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>TermGPT</string>
+<key>CFBundleIdentifier</key><string>local.TermGPT.desktop</string>
+<key>CFBundleName</key><string>TermGPT</string>
+<key>CFBundleDisplayName</key><string>TermGPT</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.2.0</string>
+<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleIconFile</key><string>TermGPT</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict></plist>
+PLIST
+plutil -lint "$APP/Contents/Info.plist"
+# Finder/File Provider metadata in this workspace cannot be included in a signature.
+xattr -cr "$APP"
+codesign --force --sign - "$APP"
+codesign --verify --deep --strict "$APP"
+mkdir -p "$PWD/dist"
+/usr/bin/ditto --norsrc --noextattr "$APP" "$PWD/dist/TermGPT.app"
+/usr/bin/ditto --norsrc --noextattr -c -k --keepParent "$APP" "$PWD/dist/TermGPT-macOS-arm64.zip"
+echo "App：$PWD/dist/TermGPT.app"
+echo "签名验证通过的 ZIP：$PWD/dist/TermGPT-macOS-arm64.zip"
