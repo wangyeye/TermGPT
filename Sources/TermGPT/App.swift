@@ -38,6 +38,7 @@ struct MainView: View {
     @State private var deleteTarget: Chat?
     @State private var scrollToLatestRequest = 0
     @State private var draggedTerminal: UUID?
+    @State private var sftpBookmark: Bookmark?
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         VStack(spacing: 0) {
@@ -58,6 +59,8 @@ struct MainView: View {
         .environment(\.locale, Locale(identifier: workspace.preferences.language.resolved() == .chinese ? "zh-Hans" : "en"))
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button { sftpBookmark = workspace.activeSession?.bookmark } label: { Image(systemName: "folder") }
+                    .disabled(workspace.activeSession?.bookmark == nil).help(L("打开当前主机 SFTP")).accessibilityLabel(L("打开当前主机 SFTP"))
                 Button { workspace.setLayout(bookmarks: !workspace.preferences.showBookmarks, chat: workspace.preferences.showChat) } label: {
                     Image(systemName: "sidebar.left").foregroundStyle(workspace.preferences.showBookmarks ? Color.accentColor : Color.secondary)
                 }.help(L("显示书签栏")).accessibilityLabel(L("显示书签栏"))
@@ -76,6 +79,7 @@ struct MainView: View {
             }
         }
         .onChange(of: colorScheme) { scheme in workspace.applyTerminalTheme(light: scheme == .light) }
+        .sheet(item: $sftpBookmark) { bookmark in SFTPView(bookmark: bookmark, language: workspace.preferences.language.resolved().rawValue) }
         .sheet(item: $renameTarget) { chat in RenameChatView(workspace: workspace, chat: chat) }
         .alert(L("删除聊天？"), isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
             Button(L("取消"), role: .cancel) { deleteTarget = nil }

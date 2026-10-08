@@ -145,3 +145,15 @@ Not implemented: split terminals, combined multi-terminal context, an agent loop
 MIT licensed. SwiftTerm upstream v1.9.0, commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`, retains its MIT license and copyright notices. Its local manifest is a macOS-only library with no remote dependencies; debug paths use the dynamic home directory. The AI-generated icon depicts a terminal prompt and sparkles without third-party trademarks. TermGPT is not an official OpenAI product.
 
 - Click anywhere in the chat/bookmark row to select/connect; the ellipsis menu is independent. Switching chats opens the latest messages, while streaming replies never force-scroll.
+
+### SFTP file browser
+
+Select an SSH terminal tab and click the folder button in the top toolbar. The SFTP window stays attached to that bookmarked host even if you switch terminal tabs. Local Shell does not expose SFTP; SSH sessions started manually inside a local shell cannot be detected.
+
+Use the path field, Parent Directory, Refresh, or double-click a directory to browse. Select a file and click Download (or double-click it); choose a local destination. Upload File lets you select one local file for the current remote directory. Existing remote names require replacement confirmation. Progress reports acknowledged bytes, and failures are shown in the window. Cancel stops the SFTP connection without stopping your terminal.
+
+Authentication uses system OpenSSH, SSH config/Agent, the bookmark's private key or saved JSON password. Unsaved passwords, key passphrases and interactive challenges use a temporary secure input dialog; manually entered values are never stored. Unknown host fingerprints use the SSH verification dialog. No jump-host features are added.
+
+Uploads stage a hidden-by-convention `.partial` file then rename it; replacement requires the server's OpenSSH POSIX rename extension. New uploads use mode 0600. Downloads stage a mode-0600 local file and replace the chosen destination only after successful transfer. Interrupted connections can leave a remote `.partial` file; remove it manually if needed. Directory transfers and remote editing are not included. Filenames must be UTF-8. Protocol: [SFTP v3](https://www.ietf.org/archive/id/draft-ietf-secsh-filexfer-02.txt), carried by [OpenSSH's subsystem mode](https://man.openbsd.org/ssh).
+
+Development: `./scripts/test-isolated.sh` checks the environment, snapshots sources into a temporary directory, runs the test suite, and removes the snapshot. Use it when a File Provider changes source/build timestamps. SFTP integration tests use `/usr/libexec/sftp-server` and temporary synthetic files; no saved credentials or remote hosts are accessed. `TERMGPT_TEST_BUILD_DIR=/private/tmp/termgpt-tests ./scripts/test.sh` also selects a custom build cache.

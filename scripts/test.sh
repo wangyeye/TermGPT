@@ -6,8 +6,9 @@ source ./scripts/toolchain.sh
 RUNNER=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
 [[ -x "$RUNNER" ]] || { echo '自动测试需要已安装完整 Xcode 的 XCTest runner；App 构建不需要接受 Xcode 许可。'; exit 1; }
 # Native build avoids SwiftBuild signing temporary test bundles in File Provider folders.
-swift build --build-tests --build-system native "${SWIFT_FLAGS[@]}" "${TEST_SWIFT_FLAGS[@]}"
-TEST_BUNDLE="$PWD/.build/debug/TermGPTPackageTests.xctest"
+TEST_BUILD_DIR="${TERMGPT_TEST_BUILD_DIR:-$PWD/.build}"
+swift build --scratch-path "$TEST_BUILD_DIR" --build-tests --build-system native "${SWIFT_FLAGS[@]}" "${TEST_SWIFT_FLAGS[@]}"
+TEST_BUNDLE="$TEST_BUILD_DIR/debug/TermGPTPackageTests.xctest"
 [[ -d "$TEST_BUNDLE" ]] || { echo '没有找到测试 bundle'; exit 1; }
 TEST_STAGE="$(mktemp -d /private/tmp/termgpt-test.XXXXXX)"
 trap 'rm -rf "$TEST_STAGE"' EXIT

@@ -32,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>TermGPT</string>
 <key>CFBundleDisplayName</key><string>TermGPT</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.5</string>
-<key>CFBundleVersion</key><string>11</string>
+<key>CFBundleShortVersionString</key><string>0.5.0</string>
+<key>CFBundleVersion</key><string>12</string>
 <key>CFBundleIconFile</key><string>TermGPT</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
