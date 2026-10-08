@@ -29,6 +29,7 @@ final class Localization: ObservableObject {
         "自动模式仅在问题与终端相关时附加上下文。": "Auto attaches context only when the question relates to the terminal.",
         "上下文已锁定；切换标签页不会改变分析来源。": "Context is locked; switching tabs does not change its source.",
         "分析来源与执行目标不同，请核对目标主机。": "Analysis source and execution target differ. Check the target host.",
+        "SFTP 文件": "SFTP Files",
         "打开当前主机 SFTP": "Open SFTP for Current Host",
         "上级目录": "Parent Directory",
         "远端路径": "Remote Path",

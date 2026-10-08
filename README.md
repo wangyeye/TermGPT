@@ -148,7 +148,7 @@ MIT licensed. SwiftTerm upstream v1.9.0, commit `8840e3596739adfe9599c0e7fff89f4
 
 ### SFTP file browser
 
-Select an SSH terminal tab and click the folder button in the top toolbar. The SFTP window stays attached to that bookmarked host even if you switch terminal tabs. Local Shell does not expose SFTP; SSH sessions started manually inside a local shell cannot be detected.
+Select an SSH terminal tab and click SFTP Files on the right of the terminal tab bar (or right-click an SSH tab → SFTP Files). The SFTP window stays attached to that bookmarked host even if you switch terminal tabs. Local Shell does not expose SFTP; SSH sessions started manually inside a local shell cannot be detected.
 
 Use the path field, Parent Directory, Refresh, or double-click a directory to browse. Select a file and click Download (or double-click it); choose a local destination. Upload File lets you select one local file for the current remote directory. Existing remote names require replacement confirmation. Progress reports acknowledged bytes, and failures are shown in the window. Cancel stops the SFTP connection without stopping your terminal.
 

@@ -139,11 +139,16 @@ struct MainView: View {
     }
     var terminal: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(workspace.sessions) { session in
                         TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
                             .contextMenu {
+                                if let bookmark = session.bookmark {
+                                    Button(L("SFTP 文件")) { sftpBookmark = bookmark }
+                                    Divider()
+                                }
                                 Button(L("关闭当前终端")) { workspace.close(session.id) }
                                 Button(L("关闭右侧标签页")) { workspace.closeRight(of: session.id) }
                                     .disabled(workspace.sessions.last?.id == session.id)
@@ -157,6 +162,11 @@ struct MainView: View {
                     }
                     Button { workspace.newLocal() } label: { Image(systemName: "plus") }.buttonStyle(.plain).padding(10)
                 }.padding(6)
+                }.frame(maxWidth: .infinity)
+                if let bookmark = workspace.activeSession?.bookmark {
+                    Button { sftpBookmark = bookmark } label: { Label(L("SFTP 文件"), systemImage: "folder") }
+                        .buttonStyle(.bordered).help(L("打开当前主机 SFTP")).padding(.trailing, 8)
+                }
             }.frame(height: 47)
             Divider()
             if let session = workspace.activeSession {
