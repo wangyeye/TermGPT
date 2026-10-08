@@ -161,3 +161,11 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 上传先写 `.partial` 临时文件，再改名；覆盖同名文件需要服务器支持 OpenSSH POSIX rename 扩展。新上传文件权限为 0600。下载使用本地 0600 临时文件，成功后才替换所选目标。连接中断可能残留远端 `.partial` 文件，可手动清理。暂不支持目录递归传输和远端编辑，文件名需为 UTF-8。
 
 开发验证：`./scripts/test-isolated.sh` 先检查环境，将源码复制到临时目录运行测试，结束后自动清理，适用于同步目录引起文件时间戳变化的情况。SFTP 集成测试使用 `/usr/libexec/sftp-server` 和临时测试文件，不读取保存的凭据或访问远端主机。也可通过 `TERMGPT_TEST_BUILD_DIR=/private/tmp/termgpt-tests ./scripts/test.sh` 指定构建缓存。
+
+### sz / rz（ZMODEM）
+
+远端执行 `sz 文件名` 下载到 Mac，会弹出本地保存目录选择框；远端执行 `rz` 上传，会弹出本地文件选择框，可多选。远端需要安装自己的 rz/sz，Mac 辅助工具已内置，不需要 Homebrew。也支持在本地 Shell 中手动 SSH 登录后的传输。
+
+协议数据不会作为终端文字渲染。传输期间暂停普通键盘输入和 AI 命令操作，终端底部显示进度、错误和取消传输按钮。下载先接收到私有临时目录，成功后移动到所选位置，同名文件添加数字后缀，不覆盖原文件。取消会删除部分本地下载；批量失败后请重试，不支持递归传输目录。
+
+内置 lrzsz 0.13.1 是单独的 GPL-2.0-or-later 辅助程序，完整对应源码、许可与编译说明位于 `Vendor/lrzsz`。`./scripts/build-zmodem.sh arm64` 检查环境并编译工具，Intel 使用 x86_64；`python3 scripts/test-zmodem.py .build/zmodem-arm64` 验证实际协议传输，不访问真实远端。

@@ -72,8 +72,11 @@ for path in files:
     try:
         text = data.decode('utf-8')
     except UnicodeDecodeError:
-        issues.append({'file': str(rel), 'check': 'unexpected-binary'})
-        continue
+        if str(rel) in {'Vendor/lrzsz/README', 'Vendor/lrzsz/README.cvs'}:
+            text = data.decode('latin-1')  # Unmodified public upstream legacy text.
+        else:
+            issues.append({'file': str(rel), 'check': 'unexpected-binary'})
+            continue
     for name, pattern in checks.items():
         if name == 'email-in-first-party-code' and rel.parts[0] == 'Vendor':
             continue  # Upstream public attribution remains under its original license.

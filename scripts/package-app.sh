@@ -22,6 +22,12 @@ cp -X "$APP_BINARY" "$APP/Contents/MacOS/TermGPT"
 ASKPASS_BINARY="$(dirname "$APP_BINARY")/TermGPTSSHAskpass"
 [[ -x "$ASKPASS_BINARY" ]] || { echo '缺少 SSH 密码认证组件'; exit 1; }
 cp -X "$ASKPASS_BINARY" "$APP/Contents/MacOS/TermGPTSSHAskpass"
+./scripts/build-zmodem.sh "$PACKAGE_ARCH" "$(dirname "$APP_BINARY")"
+for component in TermGPTRZ TermGPTSZ; do
+    cp -X "$(dirname "$APP_BINARY")/$component" "$APP/Contents/MacOS/$component"
+    codesign --force --sign - "$APP/Contents/MacOS/$component"
+done
+cp -X Vendor/lrzsz/COPYING "$APP/Contents/Resources/lrzsz-COPYING.txt"
 cp -X Assets/TermGPT.icns "$APP/Contents/Resources/TermGPT.icns"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

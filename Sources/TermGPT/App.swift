@@ -265,7 +265,7 @@ struct TerminalTab: View {
 struct SessionFooter: View {
     @ObservedObject private var localization = Localization.shared
     @ObservedObject var session: TerminalSession
-    var body: some View { HStack { Text(L(session.status)); Spacer(); Text(session.cwd).lineLimit(1) }.font(.caption).foregroundStyle(.secondary).padding(8) }
+    var body: some View { HStack { Text(session.transferStatus.isEmpty ? L(session.status) : session.transferStatus).lineLimit(1); if session.transferring { Button(L("取消传输")) { session.view.zmodem.cancel() } }; Spacer(); Text(session.cwd).lineLimit(1) }.font(.caption).foregroundStyle(.secondary).padding(8) }
 }
 struct MessageView: View {
     @ObservedObject private var localization = Localization.shared
@@ -300,8 +300,8 @@ struct MessageView: View {
                                 Spacer()
                                 Button(L("复制")) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code, forType: .string) }
                                 if block.isShellCommand {
-                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || index == parts.count - 1)
-                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || index == parts.count - 1)
+                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || workspace.activeSession?.transferring == true || index == parts.count - 1)
+                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || workspace.activeSession?.transferring == true || index == parts.count - 1)
                                 }
                             }.font(.caption)
                         }.padding(12).background(Color.primary.opacity(0.055)).cornerRadius(8)

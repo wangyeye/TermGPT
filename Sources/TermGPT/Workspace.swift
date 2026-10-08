@@ -4,6 +4,12 @@ import SwiftTerm
 
 final class WorkTerminal: LocalProcessTerminalView {
     var ask: ((String, String) -> Void)?
+    lazy var zmodem = ZmodemTransfer(view: self)
+    override func dataReceived(slice: ArraySlice<UInt8>) { zmodem.receive(Data(slice)) }
+    func displayTerminalData(_ data: Data) { super.dataReceived(slice: Array(data)[...]) }
+    override func send(source: Terminal, data: ArraySlice<UInt8>) {
+        if !zmodem.active { super.send(source: source, data: data) }
+    }
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(askSelected(_:)) { return !(getSelection() ?? "").isEmpty }
         return super.validateUserInterfaceItem(item)
@@ -26,6 +32,8 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     @Published var status = "准备中"
     @Published var cwd = ""
     @Published var running = false
+    @Published var transferStatus = ""
+    @Published var transferring = false
     var started = false
     var targetLabel: String {
         guard let bookmark else { return "\(name) · \(L("本机"))" }
@@ -35,6 +43,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     init(name: String, bookmark: Bookmark? = nil) { self.name = name; self.bookmark = bookmark; view.processDelegate = self; view.getTerminal().changeHistorySize(10000) }
     func start(_ preferences: Preferences) throws {
         guard !started else { return }
+        view.zmodem.changed = { [weak self] status, active in self?.transferStatus = status; self?.transferring = active }
         apply(preferences)
         var environment = ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"; environment["COLORTERM"] = "truecolor"
@@ -67,8 +76,8 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) { cwd = directory ?? "" }
-    func processTerminated(source: TerminalView, exitCode: Int32?) { running = false; status = "已退出：\(exitCode.map(String.init) ?? "未知")" }
-    func close() { if running { view.terminate() }; running = false }
+    func processTerminated(source: TerminalView, exitCode: Int32?) { view.zmodem.cancel(); running = false; status = "已退出：\(exitCode.map(String.init) ?? "未知")" }
+    func close() { view.zmodem.cancel(); if running { view.terminate() }; running = false }
 }
 struct TerminalHost: NSViewRepresentable {
     let session: TerminalSession
@@ -248,18 +257,18 @@ struct RunProposal: Identifiable {
     func cancel() { task?.cancel() }
     func insert(_ command: String) {
         guard Safety.insertable(command) else { error = "填入仅接受单行且不含控制字符的命令。多行代码请复制后手动检查。"; return }
-        guard let target = activeSession, target.running else { error = "当前终端已退出"; return }
+        guard let target = activeSession, target.running, !target.transferring else { error = "当前终端已退出"; return }
         target.view.send(txt: command); target.view.window?.makeFirstResponder(target.view)
         notice = "已填入 \(target.name)，未按 Enter；执行前请检查当前输入行及程序"
     }
     func propose(_ command: String) {
         guard Safety.insertable(command) else { error = "自动执行仅支持单行命令；多行脚本请手动审查。"; return }
-        guard let target = activeSession, target.running else { error = "当前终端已退出"; return }
+        guard let target = activeSession, target.running, !target.transferring else { error = "当前终端已退出"; return }
         let request = RunProposal(command: command, target: target.id, name: target.name, high: Safety.highRisk(command))
         if request.high { proposal = request } else { run(request) }
     }
     func run(_ p: RunProposal) {
-        guard let target = sessions.first(where: { $0.id == p.target }), target.running else { error = "目标终端已退出"; return }
+        guard let target = sessions.first(where: { $0.id == p.target }), target.running, !target.transferring else { error = "目标终端已退出"; return }
         // Control-U clears a normal shell edit line. The user must confirm this is a shell prompt.
         target.view.send(txt: "\u{15}" + p.command + "\r")
         target.view.window?.makeFirstResponder(target.view)
