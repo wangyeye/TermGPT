@@ -78,6 +78,9 @@ for path in files:
         if name == 'email-in-first-party-code' and rel.parts[0] == 'Vendor':
             continue  # Upstream public attribution remains under its original license.
         for match in pattern.finditer(text):
+            # Public OpenSSH protocol extension identifier, not a personal email.
+            if name == 'email-in-first-party-code' and match.group(0) == 'posix-rename@openssh.com':
+                continue
             issues.append({'file': str(rel), 'line': text.count('\n', 0, match.start()) + 1, 'check': name})
 report = {'files': len(manifest), 'issues': issues, 'manifest': manifest}
 if args.report:
