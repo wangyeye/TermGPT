@@ -58,9 +58,13 @@ struct MainView: View {
         .preferredColorScheme(workspace.preferences.interfaceTheme.colorScheme)
         .environment(\.locale, Locale(identifier: workspace.preferences.language.resolved() == .chinese ? "zh-Hans" : "en"))
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
+            ToolbarItem(placement: .primaryAction) {
                 Button { sftpBookmark = workspace.activeSession?.bookmark } label: { Image(systemName: "folder") }
                     .disabled(workspace.activeSession?.bookmark == nil).help(L("打开当前主机 SFTP")).accessibilityLabel(L("打开当前主机 SFTP"))
+            }
+            ToolbarItem(placement: .primaryAction) { Spacer().frame(width: 12) }
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: 12) {
                 Button { workspace.setLayout(bookmarks: !workspace.preferences.showBookmarks, chat: workspace.preferences.showChat) } label: {
                     Image(systemName: "sidebar.left").foregroundStyle(workspace.preferences.showBookmarks ? Color.accentColor : Color.secondary)
                 }.help(L("显示书签栏")).accessibilityLabel(L("显示书签栏"))
@@ -76,6 +80,7 @@ struct MainView: View {
                 Button { workspace.setLayout(bookmarks: workspace.preferences.showBookmarks, chat: !workspace.preferences.showChat) } label: {
                     Image(systemName: "sidebar.right").foregroundStyle(workspace.preferences.showChat ? Color.accentColor : Color.secondary)
                 }.help(L("显示聊天栏")).accessibilityLabel(L("显示聊天栏"))
+                }
             }
         }
         .onChange(of: colorScheme) { scheme in workspace.applyTerminalTheme(light: scheme == .light) }
