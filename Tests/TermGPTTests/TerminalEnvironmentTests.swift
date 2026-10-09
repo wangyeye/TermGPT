@@ -34,7 +34,7 @@ final class TerminalEnvironmentTests: XCTestCase {
         await fulfillment(of: [ready], timeout: 10)
         process.send(data: Array(text.utf8)[...])
         await fulfillment(of: [pasted], timeout: 10)
-        let displayed = String(decoding: probe.terminal.getBufferAsData(), as: UTF8.self)
+        let displayed = String(decoding: probe.terminal.getBufferAsData(), as: UTF8.self).replacingOccurrences(of: "\u{0}", with: "")
         XCTAssertTrue(displayed.contains(text), displayed)
         process.send(data: [13][...])
         await fulfillment(of: [probe.received], timeout: 10)
@@ -56,8 +56,8 @@ private final class UnicodePTYProbe: LocalProcessDelegate {
     func processTerminated(_ source: LocalProcess, exitCode: Int32?) {}
     func dataReceived(slice: ArraySlice<UInt8>) {
         bytes.append(contentsOf: slice); terminal.feed(buffer: slice)
-        if !readyDone && output.contains("UTF8_READY") { readyDone = true; ready.fulfill() }
-        let displayed = String(decoding: terminal.getBufferAsData(), as: UTF8.self)
+        if !readyDone && output.contains("input> ") { readyDone = true; ready.fulfill() }
+        let displayed = String(decoding: terminal.getBufferAsData(), as: UTF8.self).replacingOccurrences(of: "\u{0}", with: "")
         if !pastedDone && displayed.contains(text) { pastedDone = true; pasted.fulfill() }
         if !receivedDone && output.contains("RECEIVED:" + text) { receivedDone = true; received.fulfill() }
     }
