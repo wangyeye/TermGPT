@@ -194,6 +194,8 @@ For a desktop-engine-only fix, `./scripts/repack-desktop.sh arm64` (or `x86_64`)
 
 ### Web bookmarks
 
+After testing saved Basic Auth credentials, stop the fixture and run `python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application Support/TermGPT/credentials.json"`. This removes only the exact synthetic loopback fixture credential and preserves other entries without printing them.
+
 HTTP Basic/Digest authentication opens a username/password dialog. Cancel aborts authentication; credentials are kept for the browser session by default. Select Save Password to retain them in the local, permission-restricted credentials.json; they are scoped to scheme, host, port, realm and authentication method. In the local fixture, `/auth` uses the synthetic username/password `fixture` / `fixture`.
 
 Opening a bookmark checks its identity against all open tabs. If it is already open, choose **Switch to Existing Tab**, **Open New Tab**, or **Cancel**. This applies to all connection types; switching prefers the current matching tab, otherwise the first matching tab.

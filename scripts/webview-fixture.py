@@ -4,6 +4,10 @@ import argparse
 import base64
 import http.server
 import sys
+import json
+import os
+import pathlib
+import tempfile
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -27,9 +31,33 @@ if __name__ == '__main__':
         sys.exit('Python 3.8 or newer is required.')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--clear-saved-auth', type=pathlib.Path, help='Remove only fixture/fixture credentials for this loopback port from a credentials.json file, then exit.')
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error('port must be in 1..65535')
+    if args.clear_saved_auth:
+        path = args.clear_saved_auth
+        if path.is_symlink() or not path.is_file():
+            parser.error('Configuration must be a regular file.')
+        data = json.loads(path.read_text())
+        passwords = data.get('webPasswords', {})
+        for key, value in list(passwords.items()):
+            try:
+                scope = json.loads(key)
+            except (ValueError, TypeError):
+                continue
+            if (isinstance(scope, list) and len(scope) == 5 and scope[:4] == ['http', '127.0.0.1', str(args.port), 'TermGPT synthetic test']
+                    and value == {'username': 'fixture', 'password': 'fixture'}):
+                del passwords[key]
+        descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix='.fixture-cleanup-')
+        try:
+            with os.fdopen(descriptor, 'w') as output:
+                json.dump(data, output, ensure_ascii=False, indent=2)
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary): os.unlink(temporary)
+        print('Synthetic fixture credential cleanup complete.')
+        sys.exit(0)
     server = http.server.HTTPServer(('127.0.0.1', args.port), Handler)
     print(f'WEB fixture: http://127.0.0.1:{args.port}/', flush=True)
     try:

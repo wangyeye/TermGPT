@@ -198,6 +198,8 @@ RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和�
 
 ### WEB 书签
 
+测试保存 Basic Auth 后，停止服务并运行 `python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application Support/TermGPT/credentials.json"`，仅清理上述回环地址的模拟测试密码，保留其他配置且不打印凭据。
+
 HTTP Basic/Digest 身份验证会弹出用户名和密码框，取消后终止验证；默认只用于浏览器会话；勾选“保存密码”后保存到本机权限受限的 credentials.json，按协议、主机、端口、认证域和方式隔离，下次自动登录。本地测试页面 `/auth` 使用模拟用户名和密码 `fixture` / `fixture`。
 
 打开书签时按书签 ID 检查现有标签。没有对应标签时直接打开；已有时可选择“切换到已有标签”“打开新标签”或“取消”。适用于所有连接类型；切换优先保留当前匹配标签，否则选择第一个匹配标签。
