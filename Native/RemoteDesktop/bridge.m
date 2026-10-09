@@ -165,7 +165,7 @@ static void runRDP(void) {
  freerdp *rdp = freerdp_new(); if (!rdp) { status(@"RDP initialization failed"); return; }
  rdp->PreConnect = preConnect; rdp->PostConnect = postConnect; rdp->LoadChannels = loadChannels;
  rdp->VerifyCertificateEx = verifyCertificate; rdp->VerifyChangedCertificateEx = verifyChanged;
- if (!freerdp_context_new(rdp)) { freerdp_free(rdp); return; }
+ if (!freerdp_context_new(rdp)) { status(@"RDP initialization failed: user home/configuration directory unavailable"); freerdp_free(rdp); return; }
  rdpSettings *s = rdp->context->settings;
  freerdp_settings_set_string(s, FreeRDP_ServerHostname, [configuration[@"host"] UTF8String]);
  freerdp_settings_set_uint32(s, FreeRDP_ServerPort, [configuration[@"port"] unsignedIntValue]);
@@ -227,7 +227,23 @@ static rfbBool vncAllocate(rfbClient *client) {
  if (client->width <= 0 || client->height <= 0 || client->width > 4096 || client->height > 2160) return FALSE;
  free(client->frameBuffer); client->frameBuffer = calloc((size_t)client->width * client->height, 4); return client->frameBuffer != NULL;
 }
-static void vncFrame(rfbClient *client) { frame(client->frameBuffer, client->width, client->height, client->width * 4); }
+static BOOL checkedInitialVNCFrame = NO;
+static void vncFrame(rfbClient *client) {
+ frame(client->frameBuffer, client->width, client->height, client->width * 4);
+ if (!checkedInitialVNCFrame && client->frameBuffer) {
+  checkedInitialVNCFrame = YES; BOOL black = YES;
+  for (size_t i = 0; i < (size_t)client->width * client->height * 4; i += 4) {
+   if (client->frameBuffer[i] || client->frameBuffer[i+1] || client->frameBuffer[i+2]) { black = NO; break; }
+  }
+  if (black) {
+   packet(6, [@"Initial framebuffer is black; sending pointer motion with no buttons to wake display" dataUsingEncoding:NSUTF8StringEncoding]);
+   int x = client->width / 2, y = client->height / 2;
+   SendPointerEvent(client, x, y, 0);
+   SendPointerEvent(client, MIN(x+1, client->width-1), y, 0);
+   SendFramebufferUpdateRequest(client, 0, 0, client->width, client->height, FALSE);
+  }
+ }
+}
 static void vncClipboard(rfbClient *client, const char *text, int length) {
  if (![configuration[@"clipboard"] boolValue] || length < 0 || length > 1024 * 1024) return;
  NSString *string = [[NSString alloc] initWithBytes:text length:length encoding:NSISOLatin1StringEncoding]; if (string) packet(3, [string dataUsingEncoding:NSUTF8StringEncoding]);
@@ -271,6 +287,8 @@ static void runVNC(void) {
  status(@"disconnected"); free(client->frameBuffer); client->frameBuffer = NULL; rfbClientCleanup(client);
 }
 int main(void) { @autoreleasepool {
+ // Standalone callers and older app builds may omit HOME; FreeRDP requires it during context creation.
+ if (!getenv("HOME") || !*getenv("HOME")) setenv("HOME", NSHomeDirectory().UTF8String, 1);
  signal(SIGPIPE, SIG_IGN); setenv("WLOG_LEVEL", "OFF", 1); setenv("WLOG_APPENDER", "CONSOLE", 1);
  commands = [NSMutableArray array]; certificateCondition = [NSCondition new];
  configuration = readCommand();

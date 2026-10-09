@@ -172,6 +172,8 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 
 ### VNC 与 RDP 桌面
 
+服务端首帧完全为黑色时，TermGPT 会发送一次短暂的鼠标移动（**不点击、不按键**），并请求完整刷新以唤醒闲置显示。连接组件明确设置用户目录和临时目录；状态、证书等小数据包立即处理，不等待缓冲区填满。
+
 连接日志自动保存在 `~/Library/Application Support/TermGPT/Logs/`，点击桌面顶部的文档放大镜按钮即可打开。记录连接阶段、协议错误、证书选择和组件退出码；不记录密码、配置中的主机/用户名/域、剪贴板内容或画面。文件仅当前用户可读写，每份最多 2 MiB，保留最近 20 次连接，不自动上传。
 
 只读检查可在项目目录运行 `python3 scripts/diagnose-desktop.py`（需要 Python 3.9+）：检查书签的 TCP 端口和协议握手，不读取密码、不登录远程系统。需要验证真实连接时运行 `python3 scripts/probe-desktop-bookmarks.py /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop`，使用本机保存的凭据，每个桌面尝试一次；收到首屏或 RDP 证书提示即停止，不自动信任证书，也不发送键鼠或剪贴板。输出只含书签 ID 和脱敏后的协议信息。

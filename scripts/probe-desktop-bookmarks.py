@@ -17,6 +17,8 @@ if sys.version_info < (3, 9):
     raise SystemExit("Python 3.9 or newer is required")
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("helper", type=pathlib.Path)
+parser.add_argument("--minimal-environment", action="store_true", help="Reproduce the old app's restricted helper environment")
+parser.add_argument("--app-environment", action="store_true", help="Use the corrected app helper environment")
 args = parser.parse_args()
 if not args.helper.is_file() or not os.access(args.helper, os.X_OK):
     raise SystemExit("Executable desktop helper required")
@@ -30,7 +32,10 @@ for bookmark in state.get("bookmarks", []):
     host = "".join(c for c in bookmark["host"] if ord(c) >= 32 and ord(c) != 127).strip()
     password = credentials.get(bookmark["id"], "")
     secrets = sorted(filter(None, [password, host, bookmark.get("user", ""), bookmark.get("domain", "")]), key=len, reverse=True)
-    process = subprocess.Popen([str(args.helper.resolve())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    environment = {"PATH": "/usr/bin:/bin", "WLOG_LEVEL": "OFF"} if args.minimal_environment else None
+    if args.app_environment:
+        environment = dict(PATH="/usr/bin:/bin", WLOG_LEVEL="OFF", HOME=str(pathlib.Path.home()), TMPDIR=os.environ.get("TMPDIR", "/tmp"), LANG="en_US.UTF-8")
+    process = subprocess.Popen([str(args.helper.resolve())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=environment)
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     config = dict(protocol=kind, host=host, port=bookmark["port"], user=bookmark.get("user", ""), password=password, domain=bookmark.get("domain") or "", clipboard=False)
@@ -54,10 +59,13 @@ for bookmark in state.get("bookmarks", []):
                 packet = bytes(buffer[4:4 + size]); del buffer[:4 + size]
                 event = "frame_received" if packet[0] == 1 else "certificate_confirmation_needed" if packet[0] == 4 else "status"
                 detail = packet[1:].decode("utf-8", errors="replace") if packet[0] in (2, 6) else ""
+                if packet[0] == 1:
+                    pixels = packet[9:]
+                    detail = "nonblack_pixels=" + str(any(pixels[i] or pixels[i+1] or pixels[i+2] for i in range(0, len(pixels), 4)))
                 for secret in secrets:
                     detail = detail.replace(secret, "[redacted]")
                 print(json.dumps(dict(event=event, detail=detail[:4096])), flush=True)
-                if packet[0] in (1, 4) or (packet[0] == 2 and ("failed" in detail or detail == "disconnected")):
+                if packet[0] == 4 or (packet[0] == 1 and detail == "nonblack_pixels=True") or (packet[0] == 2 and ("failed" in detail or detail == "disconnected")):
                     done = True; break
         if not done:
             print(json.dumps(dict(event="ended_without_frame_or_certificate")), flush=True)
@@ -71,4 +79,8 @@ for bookmark in state.get("bookmarks", []):
             process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             process.terminate(); process.wait(timeout=5)
-        process.stdin.close(); process.stdout.close()
+        try:
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+        process.stdout.close()

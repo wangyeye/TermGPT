@@ -2,6 +2,26 @@ import XCTest
 import AppKit
 @testable import TermGPT
 final class RemoteDesktopTests: XCTestCase {
+    func testSmallStatusPacketArrivesWhileHelperStillRunning() throws {
+        _ = NSApplication.shared
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let helper = directory.appendingPathComponent("small-packet-fixture.sh")
+        try "#!/bin/sh\nread configuration\nprintf '\\000\\000\\000\\012\\002connected'\nsleep 3\n".write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+        var bookmark = Bookmark(name: "fixture", host: "localhost"); bookmark.connectionKind = .rdp
+        let desktop = RemoteDesktop(bookmark: bookmark)
+        defer { desktop.close() }
+        let received = expectation(description: "small packet published before helper exits")
+        desktop.changed = { if desktop.connected { received.fulfill() } }
+        try desktop.start(helperURL: helper)
+        wait(for: [received], timeout: 1.5)
+    }
+    func testHelperEnvironmentIncludesHomeForRDPInitialization() {
+        XCTAssertEqual(RemoteDesktop.helperEnvironment["HOME"], FileManager.default.homeDirectoryForCurrentUser.path)
+        XCTAssertNotNil(RemoteDesktop.helperEnvironment["TMPDIR"])
+    }
     func testCertificateUsesNativeSheetAndClosesWithTab() {
         _ = NSApplication.shared
         var bookmark = Bookmark(name: "fixture", host: "desktop.example"); bookmark.connectionKind = .rdp

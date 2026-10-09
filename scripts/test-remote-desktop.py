@@ -7,6 +7,7 @@ if sys.platform != 'darwin' or not shutil.which('clang'):
 helper = Path(sys.argv[1] if len(sys.argv)>1 else '.build/remote-arm64/TermGPTRemoteDesktop').resolve()
 if not helper.is_file(): raise SystemExit('Build scripts/build-remote-desktop.sh first')
 password_mode = '--password' in sys.argv
+black_mode = '--initial-black' in sys.argv
 password = 'fixture8' if password_mode else ''
 listener = socket.socket(); listener.bind(('127.0.0.1',0)); listener.listen(1); listener.settimeout(20)
 events = queue.Queue(); errors = queue.Queue(); packets = queue.Queue()
@@ -33,7 +34,7 @@ def server():
             connection.sendall(b'\0'*4); read_exact(connection,1)
             name=b'TermGPT synthetic desktop'
             connection.sendall(struct.pack('>HHBBBBHHHBBB3xI',4,3,32,24,0,1,255,255,255,0,8,16,len(name))+name)
-            sent=False
+            sent=False; woke=False
             while True:
                 kind=read_exact(connection,1)[0]
                 if kind==0: read_exact(connection,19)
@@ -43,7 +44,7 @@ def server():
                     read_exact(connection,9)
                     # Solid red RGBA plus a text clipboard notification.
                     if not sent:
-                        framebuffer=struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+bytes([255,0,0,0])*12
+                        framebuffer=struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+(bytes([0,0,0,0]) if black_mode else bytes([255,0,0,0]))*12
                         text=b'remote clipboard fixture'
                         # One TCP write forces read-ahead of the next message after the framebuffer.
                         connection.sendall(framebuffer+struct.pack('>BBBBI',3,0,0,0,len(text))+text); sent=True
@@ -51,6 +52,10 @@ def server():
                     data=read_exact(connection,7); events.put(('key',data[0],struct.unpack('>I',data[3:])[0]))
                 elif kind==5:
                     data=read_exact(connection,5); events.put(('mouse',data[0],*struct.unpack('>HH',data[1:])))
+                    if black_mode and not woke:
+                        assert data[0] == 0, 'Initial display wake must not press a mouse button'
+                        woke=True
+                        connection.sendall(struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+bytes([255,0,0,0])*12)
                 elif kind==6:
                     data=read_exact(connection,7); length=struct.unpack('>I',data[3:])[0]
                     # No extended clipboard was advertised, so this remains Latin-1.
@@ -83,6 +88,7 @@ try:
         if kind==2: statuses.append(payload.decode(errors='replace'))
         if kind==1:
             assert struct.unpack('>II',payload[:8])==(4,3)
+            if black_mode and payload[8:]==b'\0'*48:continue
             assert payload[8:]==bytes([255,0,0,0])*12;seen.add(1)
         if kind==3: assert payload==b'remote clipboard fixture';seen.add(3)
     assert seen=={1,3}

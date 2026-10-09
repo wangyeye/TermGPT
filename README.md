@@ -168,6 +168,8 @@ Bundled lrzsz 0.13.1 runs as separate GPL-2.0-or-later helper executables; the c
 
 ### VNC and RDP desktops
 
+If the server's initial framebuffer is entirely black, TermGPT sends one brief pointer movement with **no mouse buttons or keys pressed**, then requests a full refresh to wake an idle display. Connection helpers receive an explicit user home/temp directory, and small status/certificate packets are read immediately instead of waiting for a larger buffer.
+
 For one live attempt using saved credentials, run `python3 scripts/probe-desktop-bookmarks.py /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop` (Python 3.9+). It stops at the first frame or certificate challenge, never trusts certificates automatically, and sends no keyboard, mouse or clipboard events. Output contains bookmark IDs and redacted protocol details. This is separate from the credential-free transport check below.
 
 Connection diagnostics are recorded automatically in `~/Library/Application Support/TermGPT/Logs/`. Click the document/magnifier button above a desktop to open them. Logs contain connection stages, negotiation errors, certificate decisions and helper exit codes; passwords, configured host/user/domain values, clipboard contents and framebuffer pixels are excluded. Files are restricted to the current user, capped at 2 MiB each, and the newest 20 sessions are retained. Logs remain local and are not uploaded automatically.

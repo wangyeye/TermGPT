@@ -63,7 +63,7 @@ final class RemoteDesktop: ObservableObject {
         log = DesktopLog(bookmark: bookmark, password: password)
         let task = Process(), stdin = Pipe(), stdout = Pipe()
         task.executableURL = path; task.standardInput = stdin; task.standardOutput = stdout; task.standardError = FileHandle.nullDevice
-        task.environment = ["PATH": "/usr/bin:/bin", "WLOG_LEVEL": "OFF"]
+        task.environment = Self.helperEnvironment
         try task.run(); process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
         send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard])
         let handle = stdout.fileHandleForReading
@@ -73,7 +73,14 @@ final class RemoteDesktop: ObservableObject {
             defer { try? handle.close() }
             var decoder = DesktopPacketDecoder()
             do {
-                while let data = try handle.read(upToCount: 65536), !data.isEmpty {
+                // POSIX pipe reads return available bytes immediately. Foundation's counted read
+                // can wait for more bytes, deadlocking a small certificate challenge until EOF.
+                var bytes = [UInt8](repeating: 0, count: 65536)
+                while true {
+                    let count = Darwin.read(handle.fileDescriptor, &bytes, bytes.count)
+                    if count == 0 { break }
+                    if count < 0 { if errno == EINTR { continue }; throw AppError.message("远程桌面连接中断") }
+                    let data = Data(bytes.prefix(count))
                     for packet in try decoder.append(data) {
                         if packet.kind == 1 { self?.enqueueFrame(packet.data) }
                         else { DispatchQueue.main.async { [weak self] in self?.receive(packet) } }
@@ -83,6 +90,9 @@ final class RemoteDesktop: ObservableObject {
             } catch { DispatchQueue.main.async { [weak self] in self?.ended(message: L("远程桌面连接中断")) } }
         }
         clipboardTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in self?.syncLocalClipboard() }
+    }
+    static var helperEnvironment: [String: String] {
+        ["PATH": "/usr/bin:/bin", "WLOG_LEVEL": "OFF", "HOME": FileManager.default.homeDirectoryForCurrentUser.path, "TMPDIR": NSTemporaryDirectory(), "LANG": "en_US.UTF-8"]
     }
     func send(_ item: [String: Any]) {
         guard !closed, let handle = input, var data = try? JSONSerialization.data(withJSONObject: item) else { return }

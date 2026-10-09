@@ -27,7 +27,8 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
         def server_events():
             for line in server.stdout:events.put(line.strip())
         threading.Thread(target=server_events,daemon=True).start()
-        client=subprocess.Popen([str(helper)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=diagnostic,env=environment)
+        client_environment=dict(PATH='/usr/bin:/bin',WLOG_LEVEL='OFF',HOME=tmp,TMPDIR=tmp,LANG='en_US.UTF-8')
+        client=subprocess.Popen([str(helper)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=diagnostic,env=client_environment)
         def read_packets():
             try:
                 while True:
