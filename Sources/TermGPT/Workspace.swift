@@ -68,8 +68,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
         }
         view.zmodem.changed = { [weak self] status, active in self?.transferStatus = status; self?.transferring = active }
         apply(preferences)
-        var environment = ProcessInfo.processInfo.environment
-        environment["TERM"] = "xterm-256color"; environment["COLORTERM"] = "truecolor"
+        var environment = TerminalEnvironment.make(ProcessInfo.processInfo.environment)
         if let bookmark {
             let args = try bookmark.arguments()
             if bookmark.authentication == .key && !FileManager.default.isReadableFile(atPath: NSString(string: bookmark.keyPath).expandingTildeInPath) { throw AppError.message("私钥文件不可读，请检查路径与权限") }
@@ -78,7 +77,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
                 guard FileManager.default.isExecutableFile(atPath: helper) else { throw AppError.message("缺少 SSH 密码登录组件，请使用完整安装包") }
                 environment["SSH_ASKPASS"] = helper; environment["SSH_ASKPASS_REQUIRE"] = "force"
                 environment["DISPLAY"] = "TermGPT"; environment["TERMGPT_SSH_BOOKMARK_ID"] = bookmark.id.uuidString
-                environment["LC_ALL"] = "C"
+                environment = TerminalEnvironment.make(environment, authentication: true)
                 environment["TERMGPT_UI_LANGUAGE"] = preferences.language.resolved().rawValue
             }
             view.startProcess(executable: "/usr/bin/ssh", args: args, environment: environment.map { "\($0.key)=\($0.value)" })

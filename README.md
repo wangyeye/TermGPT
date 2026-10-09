@@ -199,3 +199,9 @@ Choose **WEB** when adding a connection bookmark, enter a name and a full HTTP o
 For a local browser smoke test, check `python3 --version` (3.8+), then run `python3 scripts/webview-fixture.py`. Add a WEB bookmark with the printed loopback URL. Test navigation, reload, tab switching and closing; stop the fixture with Ctrl+C. The script serves only synthetic pages on loopback and reads no personal files.
 
 The web navigation/address bar is hidden by default, including when upgrading an older configuration. Enable **Settings → Show web address bar** and save to show Back, Forward, Reload and the address field. Turning it off gives the full pane to the webpage without reloading it.
+
+### Chinese and Unicode terminal input
+
+Interactive local shells and SSH sessions use a UTF-8 character locale, including password-authenticated SSH. TermGPT preserves existing UTF-8 locale choices and supplies `en_US.UTF-8` when the GUI environment is missing a Unicode locale. Authentication messages may use `LC_MESSAGES=C`; interactive sessions never force a byte-oriented `LC_ALL=C`. Reconnect existing SSH tabs after upgrading. The remote SSH service must accept a UTF-8 locale or configure one on the host; shell startup files can still override it. The SFTP and transfer-helper protocol locales are separate from interactive terminals.
+
+Reproduce the encoding issue locally with `python3 scripts/test-unicode-pty.py` (macOS, Python 3.8+ and `/bin/zsh` required). The script checks its environment, starts isolated zsh PTYs with a temporary home, compares C and UTF-8 locales, verifies the displayed Chinese line and shell payload, and removes its temporary data. It does not access SSH hosts or personal shell profiles.

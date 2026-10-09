@@ -203,3 +203,9 @@ RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和�
 本地验证：先检查 `python3 --version`（需要 3.8 或更新），运行 `python3 scripts/webview-fixture.py`，使用打印的本地地址新增 WEB 书签，验证前进、后退、刷新、切换和关闭标签。Ctrl+C 停止测试服务。脚本仅在本机回环地址提供模拟页面，不读取个人文件。
 
 网页导航和地址栏默认隐藏，旧配置升级后同样默认隐藏。在 **设置 → 显示网页地址栏** 开启并保存后显示前进、后退、刷新及地址框；关闭后网页主体占满面板，切换设置不会重新加载网页。
+
+### 中文及 Unicode 终端输入
+
+本地 Shell 和 SSH（包括密码登录）使用 UTF-8 字符环境，保留已有 UTF-8 语言设置，GUI 环境缺少 Unicode locale 时补充 `en_US.UTF-8`。认证提示可以使用 `LC_MESSAGES=C`，交互终端不再强制 `LC_ALL=C`。升级后请重连已有 SSH 标签页。远端 SSH 服务仍需接收或自行配置 UTF-8 locale；远端 Shell 启动文件可能覆盖它。SFTP 和传输组件的协议语言环境与交互终端独立。
+
+本地复现：运行 `python3 scripts/test-unicode-pty.py`（macOS、Python 3.8+、`/bin/zsh`）。脚本先检查环境，在临时 HOME 中启动隔离 zsh PTY，对照 C 和 UTF-8 环境，检查中文输入显示及 Shell 接收内容，并清理临时文件；不访问 SSH 主机或个人 Shell 配置。
