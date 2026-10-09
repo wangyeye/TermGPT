@@ -176,7 +176,7 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 
 连接日志自动保存在 `~/Library/Application Support/TermGPT/Logs/`，点击桌面顶部的文档放大镜按钮即可打开。记录连接阶段、协议错误、证书选择和组件退出码；不记录密码、配置中的主机/用户名/域、剪贴板内容或画面。文件仅当前用户可读写，每份最多 2 MiB，保留最近 20 次连接，不自动上传。
 
-只读检查可在项目目录运行 `python3 scripts/diagnose-desktop.py`（需要 Python 3.9+）：检查书签的 TCP 端口和协议握手，不读取密码、不登录远程系统。需要验证真实连接时运行 `python3 scripts/probe-desktop-bookmarks.py /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop`，使用本机保存的凭据，每个桌面尝试一次；收到首屏或 RDP 证书提示即停止，不自动信任证书，也不发送键鼠或剪贴板。输出只含书签 ID 和脱敏后的协议信息。
+只读检查可在项目目录运行 `python3 scripts/diagnose-desktop.py`（需要 Python 3.9+）：检查书签的 TCP 端口和协议握手，不读取密码、不登录远程系统。需要验证真实连接时运行 `python3 scripts/probe-desktop-bookmarks.py /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop --app-environment`，使用本机保存的凭据，每个桌面尝试一次；收到非黑画面或 RDP 证书提示即停止，不自动信任证书，不发送按键、点击或剪贴板。组件可能移动鼠标以唤醒初始黑屏。输出只含书签 ID、脱敏协议信息和画面是否全黑的判断，不保存像素。`--minimal-environment` 可复现旧版组件运行环境，用于回归排查。
 
 端口拒绝连接应检查地址、端口和服务器是否运行；认证失败应核对服务器认证模式及登录信息。RDP 的未受信任证书通过原生弹窗确认，顶部也提供证书按钮，核对身份后可选择“仅本次信任”。崩溃时同时查看 macOS“控制台 → 崩溃报告”里的 TermGPT 报告。旧版本书签地址中误粘贴的控制字符会在加载时自动清理。
 

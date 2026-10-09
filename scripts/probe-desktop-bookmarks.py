@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """One live connection attempt per desktop bookmark, using saved local credentials.
 
-Stops at the first frame or an RDP certificate challenge; never accepts certificates.
-Only redacted protocol diagnostics are printed. No remote input or clipboard is sent.
+Stops at the first nonblack frame or an RDP certificate challenge; never accepts certificates.
+Only redacted diagnostics are printed. No keys, clicks or clipboard are sent; the helper
+may move the pointer to wake an initially black VNC display. Pixels are not saved.
 """
 import argparse
 import json
