@@ -28,7 +28,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     let id = UUID()
     let name: String
     let bookmark: Bookmark?
-    var desktop: RemoteDesktop?
+    @Published var desktop: RemoteDesktop?
     var web: WebSession?
     var isTerminal: Bool { bookmark?.kind == .ssh || bookmark == nil }
     let view = WorkTerminal(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
@@ -38,6 +38,28 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     @Published var transferStatus = ""
     @Published var transferring = false
     var started = false
+    @Published var connecting = false
+    @Published var autoReconnect = false { didSet { if !autoReconnect { reconnectWork?.cancel(); reconnectWork = nil } } }
+    private var closed = false
+    private var retryCount = 0
+    private var reconnectWork: DispatchWorkItem?
+    private var lastPreferences = Preferences()
+    var diagnosticMessage: String { desktop?.diagnosticMessage ?? String(snapshot().suffix(4096)) }
+    func reconnect(_ preferences: Preferences) throws {
+        guard !running, !connecting, !closed else { return }
+        reconnectWork?.cancel(); reconnectWork = nil; let muted = desktop?.muted ?? false; desktop?.close(); desktop = nil; started = false
+        try start(preferences)
+        if muted { desktop?.toggleMute() }
+    }
+    private func scheduleReconnect() {
+        guard autoReconnect, reconnectWork == nil, !closed, !connecting, !running, retryCount < 3, bookmark != nil else { return }
+        retryCount += 1
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.autoReconnect, !self.closed else { return }; self.reconnectWork = nil
+            do { try self.reconnect(self.lastPreferences) } catch { self.status = error.localizedDescription }
+        }
+        reconnectWork = work; DispatchQueue.main.asyncAfter(deadline: .now() + Double(3 * retryCount), execute: work)
+    }
     var targetLabel: String {
         guard let bookmark else { return "\(name) · \(L("本机"))" }
         if bookmark.kind == .web { return "\(name) · \(bookmark.host)" }
@@ -46,7 +68,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     }
     init(name: String, bookmark: Bookmark? = nil) { self.name = name; self.bookmark = bookmark; view.processDelegate = self; view.getTerminal().changeHistorySize(10000) }
     func start(_ preferences: Preferences) throws {
-        guard !started else { return }
+        guard !started else { return }; lastPreferences = preferences
         if let bookmark, bookmark.kind == .web {
             let browser = WebSession()
             web = browser
@@ -61,9 +83,11 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
             let remote = RemoteDesktop(bookmark: bookmark)
             desktop = remote
             remote.changed = { [weak self, weak remote] in
-                guard let self, let remote else { return }; self.status = remote.status; self.running = remote.connected
+                guard let self, let remote else { return }; self.status = remote.status; self.running = remote.connected; self.connecting = remote.connecting
+                if remote.connected { self.retryCount = 0 }
+                if remote.endedConnection && (remote.endedUnexpectedly || self.retryCount > 0) && ConnectionFailure.canRetry(remote.diagnosticMessage) { self.scheduleReconnect() }
             }
-            try remote.start(); started = true; status = remote.status
+            try remote.start(); connecting = true; started = true; status = remote.status
             return
         }
         view.zmodem.changed = { [weak self] status, active in self?.transferStatus = status; self?.transferring = active }
@@ -98,8 +122,11 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) { cwd = directory ?? "" }
-    func processTerminated(source: TerminalView, exitCode: Int32?) { view.zmodem.cancel(); running = false; status = "已退出：\(exitCode.map(String.init) ?? "未知")" }
-    func close() { web?.close(); desktop?.close(); view.zmodem.cancel(); if isTerminal && running { view.terminate() }; running = false }
+    func processTerminated(source: TerminalView, exitCode: Int32?) {
+        view.zmodem.cancel(); running = false; status = "已退出：\(exitCode.map(String.init) ?? "未知")"
+        if exitCode != 0 && ConnectionFailure.canRetry(diagnosticMessage) { scheduleReconnect() }
+    }
+    func close() { closed = true; reconnectWork?.cancel(); web?.close(); desktop?.close(); view.zmodem.cancel(); if isTerminal && running { view.terminate() }; running = false }
 }
 struct TerminalHost: NSViewRepresentable {
     let session: TerminalSession

@@ -27,8 +27,29 @@ new = '''\t/* Older xrdp sends desktop updates during resize reactivation, befor
 \t}
 
 \tif (!Stream_CheckAndLogRequiredLength(TAG, s, 2))'''
-if new in source:
-    raise SystemExit(0)
-if source.count(old) != 1:
+if new not in source and source.count(old) != 1:
     raise SystemExit('Pinned FreeRDP update guard changed; review patch before building')
 path.write_text(source.replace(old, new))
+
+# Expose per-helper audio state and mute without changing certificate/authentication code.
+mac = Path(sys.argv[1]) / 'channels/rdpsnd/client/mac/rdpsnd_mac.m'
+source = mac.read_text()
+marker = '/* TermGPT per-process audio controls */'
+if marker not in source:
+    anchor = '#include "rdpsnd_main.h"'
+    controls = """/* TermGPT per-process audio controls */
+#include <stdatomic.h>
+static atomic_bool termgptMuted;
+static void (*termgptAudioState)(const char*);
+void termgpt_rdpsnd_set_muted(int muted) { atomic_store(&termgptMuted, muted != 0); }
+void termgpt_rdpsnd_set_state_callback(void (*callback)(const char*)) { termgptAudioState = callback; }
+"""
+    play = '\t\tif (!mac->isOpen)\n\t\t\treturn 0;'
+    if source.count(anchor) != 1 or source.count(play) != 1:
+        raise SystemExit('Pinned macOS audio backend changed; review audio controls')
+    source = source.replace(anchor, anchor + '\n' + controls)
+    source = source.replace(play, '\t\tif (!mac->isOpen) { if (termgptAudioState) termgptAudioState("error"); return 0; }\n\t\tif (termgptAudioState) termgptAudioState("playing");\n\t\tif (atomic_load(&termgptMuted)) return 100;')
+    source = source.replace('mac->isOpen = FALSE;', 'mac->isOpen = FALSE; if (termgptAudioState) termgptAudioState("idle");')
+    source = source.replace('mac->isOpen = TRUE;', 'mac->isOpen = TRUE; if (termgptAudioState) termgptAudioState("ready");')
+    source = source.replace('WLog_ERR(TAG, "Failed to start audio player %s",', 'if (termgptAudioState) termgptAudioState("error");\n\t\t\tWLog_ERR(TAG, "Failed to start audio player %s",')
+    mac.write_text(source)

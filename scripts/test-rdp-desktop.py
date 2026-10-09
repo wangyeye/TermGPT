@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
         def send(item):client.stdin.write(json.dumps(item).encode()+b'\n');client.stdin.flush()
         send(dict(protocol='rdp',host='127.0.0.1',port=port,user='fixture',password='synthetic-not-real',domain='',clipboard=True,diagnostic=True,width=800,height=600))
         seen=set();deadline=time.monotonic()+30
-        while seen!={'certificate','frame','clipboard'} and time.monotonic()<deadline:
+        while seen!={'certificate','frame','clipboard','audio'} and time.monotonic()<deadline:
             kind,payload=packets.get(timeout=30)
             if kind==4:
                 info=json.loads(payload);assert info['fingerprint'];seen.add('certificate');send(dict(type='certificate',accept=True))
@@ -49,10 +49,12 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
                 width,height=struct.unpack('>II',payload[:8]);assert width>0 and height>0
                 assert (width,height)==(800,600),(width,height)
                 assert payload[8:11]==bytes([255,0,0]),payload[8:12];seen.add('frame')
+            elif kind==7 and payload==b'playing': seen.add('audio')
             elif kind==3:
                 assert payload.decode()=='remote RDP 中文',payload;seen.add('clipboard')
             elif kind==2 and b'failed' in payload:raise AssertionError(payload.decode())
-        assert seen=={'certificate','frame','clipboard'},seen
+        assert seen=={'certificate','frame','clipboard','audio'},seen
+        send(dict(type='audio',muted=True));send(dict(type='audio',muted=False))
         send(dict(type='resize',width=1000,height=700))
         deadline=time.monotonic()+20
         while True:

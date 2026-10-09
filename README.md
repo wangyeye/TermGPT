@@ -32,6 +32,14 @@ Packages are ad-hoc signed, **not Developer ID signed or notarized**. Intel buil
 | Browser | WebKit tabs, optional address bar, Basic/Digest authentication and optional saved passwords |
 | Appearance | System/light/dark theme, English/Chinese UI and persistent sidebar layout |
 
+### Connection diagnostics, audio and reconnect
+
+Right-click an SSH/RDP/VNC tab for **Reconnect**, **Automatically Reconnect** and **Connection Diagnostics**. Manual reconnect reuses the tab after a connection ends. Automatic reconnect is off by default, applies to that tab only and makes at most three attempts after an unexpected disconnect, at 3/6/9-second intervals. Authentication, permission and certificate errors stop retries. Closing the tab or disabling the option cancels pending attempts; these temporary choices are not saved.
+
+Diagnostics check the TCP port without logging in. SSH config aliases are resolved with the system `ssh -G`. Reachability does not validate credentials or protocol compatibility. RDP errors and VNC/SSH failure output are classified into network, DNS, authentication, certificate/protocol and permission guidance where evidence permits. Desktop failures offer Diagnose and Reconnect buttons. Connection logs remain local and do not record passwords, clipboard or frame content.
+
+Desktop tab menus show audio state and **Mute/Unmute**. Waiting for server audio does not prove the server has its audio modules. VNC bell-only status means continuous audio has not been negotiated. Muting affects that connection, including VNC bells, and is retained across manual reconnect in the same tab. No desktop top status bar is added.
+
 ## Quick start
 
 1. Open **Local Shell**, or click **+** beside Connection Bookmarks.

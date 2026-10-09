@@ -154,6 +154,9 @@ struct MainView: View {
                                     Button(L("强制刷新")) { browser.view.reloadFromOrigin() }
                                     Divider()
                                 }
+                                if session.bookmark?.kind == .ssh || session.desktop != nil {
+                                    ConnectionTabActions(session: session, preferences: workspace.preferences)
+                                }
                                 if let desktop = session.desktop {
                                     DesktopTabActions(desktop: desktop)
                                     Divider()
@@ -185,11 +188,7 @@ struct MainView: View {
             if let session = workspace.activeSession {
                 ZStack {
                     ForEach(workspace.sessions) { pane in
-                        Group {
-                            if let web = pane.web { WebPane(browser: web, showAddressBar: workspace.preferences.showWebAddressBar) }
-                            else if let desktop = pane.desktop { DesktopPane(desktop: desktop, active: workspace.active == pane.id) }
-                            else { TerminalHost(session: pane) }
-                        }
+                        SessionContent(session: pane, preferences: workspace.preferences, active: workspace.active == pane.id)
                             .opacity(workspace.active == pane.id ? 1 : 0)
                             .allowsHitTesting(workspace.active == pane.id)
                             .accessibilityHidden(workspace.active != pane.id)
@@ -703,5 +702,21 @@ struct ProviderCaption: View {
 extension InterfaceTheme {
     var colorScheme: ColorScheme? {
         switch self { case .system: return nil; case .light: return .light; case .dark: return .dark }
+    }
+}
+
+struct SessionContent: View {
+    @ObservedObject var session: TerminalSession
+    let preferences: Preferences
+    let active: Bool
+    var body: some View {
+        Group {
+            if let browser = session.web { WebPane(browser: browser, showAddressBar: preferences.showWebAddressBar) }
+            else if let desktop = session.desktop {
+                DesktopPane(desktop: desktop, active: active, reconnect: {
+                    do { try session.reconnect(preferences) } catch { session.status = error.localizedDescription }
+                })
+            } else { TerminalHost(session: session) }
+        }
     }
 }

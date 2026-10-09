@@ -54,6 +54,15 @@ static void packet(uint8_t kind, NSData *data) {
  if (writeAll(&size, 4) && writeAll(&kind, 1)) writeAll(data.bytes, data.length);
  pthread_mutex_unlock(&outputLock);
 }
+extern void termgpt_rdpsnd_set_muted(int muted);
+extern void termgpt_rdpsnd_set_state_callback(void (*callback)(const char*));
+static atomic_bool audioMuted;
+static atomic_int lastAudioState = -1;
+static void audioState(const char *state) {
+ int value = !strcmp(state,"waiting") ? 0 : !strcmp(state,"ready") ? 1 : !strcmp(state,"playing") ? 2 : !strcmp(state,"bell") ? 3 : !strcmp(state,"idle") ? 5 : 4;
+ if (atomic_exchange(&lastAudioState, value) == value) return;
+ @autoreleasepool { packet(7, [[NSString stringWithUTF8String:state] dataUsingEncoding:NSUTF8StringEncoding]); }
+}
 static void status(NSString *text) { packet(2, [text dataUsingEncoding:NSUTF8StringEncoding]); }
 static void vncError(const char *format, ...) {
  char buffer[4096]; va_list args; va_start(args, format); vsnprintf(buffer, sizeof(buffer), format, args); va_end(args);
@@ -160,6 +169,7 @@ static void sendRDPResize(void) {
  }
 }
 static void channelConnected(void *context, const ChannelConnectedEventArgs *event) {
+ if (strcmp(event->name, "rdpsnd") == 0) audioState("ready");
  if (strcmp(event->name, DISP_DVC_CHANNEL_NAME) == 0) {
   @synchronized(commands) { display = event->pInterface; display->DisplayControlCaps = displayCaps; }
  }
@@ -231,6 +241,7 @@ static void runRDP(void) {
  freerdp_settings_set_bool(s, FreeRDP_NlaSecurity, TRUE); freerdp_settings_set_bool(s, FreeRDP_TlsSecurity, TRUE);
  freerdp_settings_set_bool(s, FreeRDP_RdpSecurity, FALSE); freerdp_settings_set_bool(s, FreeRDP_IgnoreCertificate, FALSE);
  freerdp_settings_set_uint32(s, FreeRDP_TcpConnectTimeout, 15000);
+ termgpt_rdpsnd_set_state_callback(audioState); audioState("waiting");
  if (!freerdp_connect(rdp)) {
   UINT32 error = freerdp_get_last_error(rdp->context);
   packet(6, [[NSString stringWithFormat:@"RDP error 0x%08x %s: %s", error, freerdp_get_last_error_name(error), freerdp_get_last_error_string(error)] dataUsingEncoding:NSUTF8StringEncoding]);
@@ -241,7 +252,8 @@ static void runRDP(void) {
    @autoreleasepool {
     for (NSDictionary *item in takeInputs()) {
      NSString *type = item[@"type"];
-     if ([type isEqual:@"resize"]) rememberResize(item);
+     if ([type isEqual:@"audio"]) { atomic_store(&audioMuted, [item[@"muted"] boolValue]); termgpt_rdpsnd_set_muted(atomic_load(&audioMuted)); }
+    else if ([type isEqual:@"resize"]) rememberResize(item);
      else if ([type isEqual:@"mouse"]) freerdp_input_send_mouse_event(rdp->context->input, [item[@"flags"] unsignedIntValue], [item[@"x"] unsignedIntValue], [item[@"y"] unsignedIntValue]);
      else if ([type isEqual:@"key"]) freerdp_input_send_keyboard_event_ex(rdp->context->input, [item[@"down"] boolValue], FALSE, [item[@"scan"] unsignedIntValue]);
      else if ([type isEqual:@"text"]) {
@@ -320,7 +332,7 @@ static atomic_bool vncAudioReported;
 static void audioConsumed(void *context, AudioQueueRef queue, AudioQueueBufferRef buffer) {
  atomic_fetch_sub(&vncQueuedBytes, buffer->mAudioDataByteSize);
  AudioQueueFreeBuffer(queue, buffer);
- if (!atomic_exchange(&vncAudioReported, true)) packet(6, [@"VNC audio buffer consumed" dataUsingEncoding:NSUTF8StringEncoding]);
+ if (!atomic_exchange(&vncAudioReported, true)) { @autoreleasepool { packet(6, [@"VNC audio buffer consumed" dataUsingEncoding:NSUTF8StringEncoding]); audioState("playing"); } }
 }
 static void stopVNCAudio(void) {
  if (vncAudio) { AudioQueueStop(vncAudio, true); AudioQueueDispose(vncAudio, true); vncAudio = NULL; }
@@ -332,15 +344,17 @@ static BOOL prepareVNCAudio(void) {
  AudioStreamBasicDescription format = {0}; format.mSampleRate = 44100;
  format.mFormatID = kAudioFormatLinearPCM; format.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked;
  format.mBytesPerPacket = 4; format.mFramesPerPacket = 1; format.mBytesPerFrame = 4; format.mChannelsPerFrame = 2; format.mBitsPerChannel = 16;
- return AudioQueueNewOutput(&format, audioConsumed, NULL, NULL, NULL, 0, &vncAudio) == noErr;
+ BOOL ready = AudioQueueNewOutput(&format, audioConsumed, NULL, NULL, NULL, 0, &vncAudio) == noErr;
+ if (ready) AudioQueueSetParameter(vncAudio, kAudioQueueParam_Volume, atomic_load(&audioMuted) ? 0 : 1);
+ return ready;
 }
 static rfbBool vncAudioEncoding(rfbClient *client, rfbFramebufferUpdateRectHeader *rect) {
  if ((int32_t)rect->encoding != -259) return FALSE;
  uint8_t format[] = {255, 1, 0, 2, 3, 2, 0, 0, 0xac, 0x44};
  uint8_t enable[] = {255, 1, 0, 0};
  if (!prepareVNCAudio() || !WriteToRFBServer(client, (char*)format, sizeof(format)) || !WriteToRFBServer(client, (char*)enable, sizeof(enable))) {
-  packet(6, [@"VNC audio output could not start" dataUsingEncoding:NSUTF8StringEncoding]);
- } else packet(6, [@"VNC QEMU Audio negotiated: PCM 44100 Hz stereo" dataUsingEncoding:NSUTF8StringEncoding]);
+  packet(6, [@"VNC audio output could not start" dataUsingEncoding:NSUTF8StringEncoding]); audioState("error");
+ } else { packet(6, [@"VNC QEMU Audio negotiated: PCM 44100 Hz stereo" dataUsingEncoding:NSUTF8StringEncoding]); audioState("ready"); }
  return TRUE;
 }
 static rfbBool vncAudioMessage(rfbClient *client, rfbServerToClientMsg *message) {
@@ -348,7 +362,7 @@ static rfbBool vncAudioMessage(rfbClient *client, rfbServerToClientMsg *message)
  uint8_t header[3];
  if (!ReadFromRFBServer(client, (char*)header, 3) || header[0] != 1) { atomic_store(&stopped, true); return TRUE; }
  unsigned operation = ((unsigned)header[1] << 8) | header[2];
- if (operation == 0) { stopVNCAudio(); return TRUE; }
+ if (operation == 0) { stopVNCAudio(); audioState("idle"); return TRUE; }
  if (operation == 1) { prepareVNCAudio(); return TRUE; }
  if (operation != 2) { atomic_store(&stopped, true); return TRUE; }
  uint32_t networkLength;
@@ -371,7 +385,7 @@ static rfbBool vncAudioMessage(rfbClient *client, rfbServerToClientMsg *message)
  }
  return TRUE;
 }
-static void vncBell(rfbClient *client) { NSBeep(); }
+static void vncBell(rfbClient *client) { if (!atomic_load(&audioMuted)) NSBeep(); }
 static int vncAudioEncodings[] = {-259, 0};
 static rfbClientProtocolExtension vncAudioExtension = {.encodings=vncAudioEncodings, .handleEncoding=vncAudioEncoding, .handleMessage=vncAudioMessage};
 
@@ -389,14 +403,15 @@ static void runVNC(void) {
  client->canHandleNewFBSize = TRUE; client->connectTimeout = 15; client->readTimeout = 20;
  client->appData.useRemoteCursor = FALSE; client->appData.enableJPEG = FALSE;
  if (!rfbInitClient(client, NULL, NULL)) { status(@"VNC connection failed. Check password, host and VNC service."); return; }
- status(@"connected"); int buttons = 0;
+ status(@"connected"); audioState("bell"); int buttons = 0;
  // Request a complete initial framebuffer without requiring mouse/keyboard activity.
  SendFramebufferUpdateRequest(client, 0, 0, client->width, client->height, FALSE);
  while (!atomic_load(&stopped)) {
   @autoreleasepool {
    for (NSDictionary *item in takeInputs()) {
     NSString *type = item[@"type"];
-    if ([type isEqual:@"resize"]) rememberResize(item);
+    if ([type isEqual:@"audio"]) { atomic_store(&audioMuted, [item[@"muted"] boolValue]); if (vncAudio) AudioQueueSetParameter(vncAudio, kAudioQueueParam_Volume, atomic_load(&audioMuted) ? 0 : 1); }
+    else if ([type isEqual:@"resize"]) rememberResize(item);
     else if ([type isEqual:@"mouse"]) { buttons = [item[@"buttons"] intValue]; SendPointerEvent(client, [item[@"x"] intValue], [item[@"y"] intValue], buttons); }
     else if ([type isEqual:@"key"]) SendKeyEvent(client, [item[@"keysym"] unsignedIntValue], [item[@"down"] boolValue]);
     else if ([type isEqual:@"text"]) { NSString *text = item[@"text"]; for (NSUInteger i = 0; i < text.length; i++) { uint32_t ch = [text characterAtIndex:i]; if (ch > 255) ch |= 0x01000000; SendKeyEvent(client, ch, TRUE); SendKeyEvent(client, ch, FALSE); } }

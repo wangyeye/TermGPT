@@ -133,6 +133,7 @@ try:
                     assert len(payload)==8+size[0]*size[1]*4
                     if payload[8:12]==bytes([255,0,0,0]):break
                 if time.monotonic()>deadline:raise AssertionError('Resize did not produce matching framebuffer')
+    send(dict(type='audio',muted=True));send(dict(type='audio',muted=False))
     send(dict(type='key',scan=0x1e,keysym=0x61,down=True))
     send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1))
     send(dict(type='clipboard',text='local clipboard fixture'))

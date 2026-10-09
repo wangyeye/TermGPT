@@ -2,6 +2,30 @@ import XCTest
 import AppKit
 @testable import TermGPT
 final class RemoteDesktopTests: XCTestCase {
+    func testFailureClassificationDoesNotTreatOpenPortAsAuthentication() {
+        XCTAssertFalse(ConnectionFailure.canRetry("RDP connection failed (0x00020009)"))
+        XCTAssertFalse(ConnectionFailure.canRetry("Permission denied"))
+        XCTAssertTrue(ConnectionFailure.canRetry("connection reset by peer"))
+        XCTAssertEqual(ConnectionFailure.explanation("RDP error 0x00020015"), L("身份验证失败，请检查用户名、密码或私钥。"))
+        XCTAssertEqual(ConnectionFailure.explanation("Unable to connect to VNC server"), L("无法建立网络连接，请检查端口、服务、防火墙及本地网络权限。"))
+        XCTAssertEqual(ConnectionFailure.explanation("host key verification failed"), L("SSH 主机指纹验证失败，请核对服务器身份及 known_hosts。"))
+        XCTAssertTrue(ConnectionFailure.explanation("unknown").contains(L("连接已结束。可检查网络端口及连接日志；端口可达不代表登录成功。")))
+    }
+    func testReconnectReplacesFailedHelperAndPreservesTabIdentity() throws {
+        _ = NSApplication.shared
+        var bookmark = Bookmark(name: "fixture", host: "localhost"); bookmark.connectionKind = .rdp
+        let session = TerminalSession(name: "fixture", bookmark: bookmark)
+        let old = RemoteDesktop(bookmark: bookmark)
+        session.desktop = old; session.started = true
+        let identity = session.id
+        // Missing packaged helper is expected in the unit-test bundle; lifecycle reset must still occur.
+        XCTAssertThrowsError(try session.reconnect(Preferences()))
+        XCTAssertEqual(session.id, identity)
+        XCTAssertFalse(session.desktop === old)
+        session.close()
+        XCTAssertNoThrow(try session.reconnect(Preferences()))
+    }
+
     func testSmallStatusPacketArrivesWhileHelperStillRunning() throws {
         _ = NSApplication.shared
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

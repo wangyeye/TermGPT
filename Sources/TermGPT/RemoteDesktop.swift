@@ -32,6 +32,14 @@ final class DesktopLog {
 final class RemoteDesktop: ObservableObject {
     @Published var status = "连接中…"
     @Published var connected = false
+    @Published var connecting = false
+    @Published var muted = false
+    @Published var audioState = "等待服务端音频"
+    private(set) var diagnosticMessage = ""
+    private(set) var endedUnexpectedly = false
+    private(set) var endedConnection = false
+    private var wasConnected = false
+    func toggleMute() { muted.toggle(); send(["type": "audio", "muted": muted]) }
     @Published var certificate: RemoteCertificate?
     let bookmark: Bookmark
     let view = DesktopCanvas(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
@@ -72,13 +80,14 @@ final class RemoteDesktop: ObservableObject {
         let path = helperURL ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/TermGPTRemoteDesktop")
         guard FileManager.default.isExecutableFile(atPath: path.path) else { throw AppError.message("缺少远程桌面组件，请使用完整安装包") }
         let password = try SSHPasswordStore.read(id: bookmark.id) ?? ""
+        connecting = true; status = L("连接中…")
         // EPIPE from a helper that has exited must not terminate the application.
         signal(SIGPIPE, SIG_IGN)
         log = DesktopLog(bookmark: bookmark, password: password)
         let task = Process(), stdin = Pipe(), stdout = Pipe()
         task.executableURL = path; task.standardInput = stdin; task.standardOutput = stdout; task.standardError = FileHandle.nullDevice
         task.environment = Self.helperEnvironment
-        try task.run(); process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
+        do { try task.run() } catch { connecting = false; throw error }; process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
         let size = DesktopResolution(size: view.bounds.size) ?? DesktopResolution(size: NSSize(width: 720, height: 600))!
         send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard, "width": size.width, "height": size.height])
         let handle = stdout.fileHandleForReading
@@ -135,14 +144,14 @@ final class RemoteDesktop: ObservableObject {
         case 2:
             let message = String(decoding: packet.data, as: UTF8.self)
             log?.record("status", message)
-            if message == "connected" { connected = true; status = L("已连接"); syncLocalClipboard(force: true); scheduleResize() }
+            if message == "connected" { connected = true; connecting = false; wasConnected = true; status = L("已连接"); syncLocalClipboard(force: true); scheduleResize() }
             else if message == "connecting" { status = L("连接中…") }
-            else if message == "disconnected" { connected = false; status = L("已断开") }
+            else if message == "disconnected" { connected = false; connecting = false; status = L("已断开") }
             else {
-                connected = false
+                connected = false; connecting = false; diagnosticMessage += "\n" + message
                 if message.hasPrefix("RDP connection failed ("), let code = message.split(separator: "(").last?.split(separator: ")").first {
-                    status = L("RDP 连接失败（%@），请检查登录信息、证书和远程桌面服务。", String(code))
-                } else if message.hasPrefix("VNC connection failed") { status = L("VNC 连接失败，请检查密码、主机和 VNC 服务。") }
+                    status = ConnectionFailure.explanation(message) + " (" + String(code) + ")"
+                } else if message.hasPrefix("VNC connection failed") { status = ConnectionFailure.explanation(diagnosticMessage) }
                 else { status = L(message) }
             }
             changed?()
@@ -159,7 +168,14 @@ final class RemoteDesktop: ObservableObject {
                 changed?()
             }
         case 5: status = L("当前 VNC 服务器不支持 Unicode 剪贴板文本。"); changed?()
-        case 6: log?.record("protocol", String(decoding: packet.data, as: UTF8.self))
+        case 6:
+            let detail = String(decoding: packet.data, as: UTF8.self)
+            log?.record("protocol", detail)
+            diagnosticMessage = String((diagnosticMessage + "\n" + detail).suffix(8192))
+        case 7:
+            let state = String(decoding: packet.data, as: UTF8.self)
+            audioState = L(["waiting": "等待服务端音频", "ready": "音频已就绪", "playing": "正在播放声音", "bell": "服务端仅支持 VNC 提示音", "error": "音频输出失败，请检查 Mac 输出设备", "idle": "音频已就绪"][state] ?? "等待服务端音频")
+            log?.record("audio", state); changed?()
         default: break
         }
     }
@@ -193,7 +209,9 @@ final class RemoteDesktop: ObservableObject {
         }
     }
     private func ended(message: String? = nil) {
-        guard !closed else { return }; connected = false
+        guard !closed else { return }; connected = false; connecting = false
+        endedUnexpectedly = wasConnected; endedConnection = true
+        audioState = L("音频已断开")
         if let message { status = message } else if status == L("已连接") || status == L("连接中…") { status = L("已断开") }
         clipboardTimer?.invalidate(); changed?()
     }
@@ -203,7 +221,7 @@ final class RemoteDesktop: ObservableObject {
         log?.record("close", "user closed tab")
         if let alert = certificateAlert, let parent = alert.window.sheetParent { parent.endSheet(alert.window, returnCode: .abort) }
         certificateAlert = nil
-        clipboardTimer?.invalidate(); clipboardTimer = nil; connected = false
+        clipboardTimer?.invalidate(); clipboardTimer = nil; connected = false; connecting = false
         let task = process, handle = input
         writes.async { try? handle?.close(); if task?.isRunning == true { task?.terminate() } }
         // The reader owns stdout until EOF; never close it during a blocking read.
@@ -257,14 +275,19 @@ struct DesktopHost: NSViewRepresentable {
 struct DesktopPane: View {
     @ObservedObject var desktop: RemoteDesktop
     let active: Bool
+    var reconnect: (() -> Void)? = nil
     var body: some View {
         DesktopHost(desktop: desktop, active: active)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 if !desktop.connected {
-                    Text(L(desktop.status)).padding(12)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        .allowsHitTesting(false)
+                    VStack(spacing: 12) {
+                        Text(L(desktop.status)).multilineTextAlignment(.center)
+                        if !desktop.connecting {
+                            if let reconnect { Button(L("重连"), action: reconnect) }
+                            Button(L("连接诊断")) { DiagnosticWindow.show(bookmark: desktop.bookmark, failure: desktop.diagnosticMessage) }
+                        }
+                    }.padding(16).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
     }
@@ -273,6 +296,8 @@ struct DesktopTabActions: View {
     @ObservedObject var desktop: RemoteDesktop
     var body: some View {
                 Text(L(desktop.status))
+                Text(L("声音：%@", desktop.muted ? L("已静音") : L(desktop.audioState)))
+                Button(desktop.muted ? L("取消静音") : L("静音")) { desktop.toggleMute() }.disabled(!desktop.connected)
                 if desktop.certificate != nil { Button(L("验证 RDP 服务器证书")) { desktop.presentCertificate() } }
                 Button(L("打开连接日志")) { NSWorkspace.shared.open(DesktopLog.directory) }
                 if desktop.bookmark.kind == .rdp {
