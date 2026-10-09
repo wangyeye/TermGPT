@@ -15,7 +15,6 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
-        "拖动排序": "Drag to reorder",
         "下移": "Move Down",
         "上移": "Move Up",
         "显示网页地址栏": "Show web address bar",

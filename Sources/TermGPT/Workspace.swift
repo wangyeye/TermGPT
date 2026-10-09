@@ -121,8 +121,6 @@ struct RunProposal: Identifiable {
     @Published var contextMode = ContextMode.auto
     @Published var bookmarks: [Bookmark] = []
     @Published var folders: [BookmarkFolder] = []
-    var draggingBookmark: UUID?
-    var draggingFolder: UUID?
     @Published var editingBookmark: Bookmark?
     @Published var foldersShown = false
     @Published var chats = [Chat()]
