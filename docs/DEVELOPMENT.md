@@ -89,7 +89,7 @@ For an authenticated resize check, explicitly add `--saved-bookmark BOOKMARK_UUI
 | `package-remote-source.py` | Verify and package corresponding upstream/helper/build source |
 | `audit-public.py`, `audit-release.py` | Source/package allowlists, private-path/credential patterns and metadata checks |
 | `export-public.py` | Create an allowlisted source export; excludes runtime data/build output/history |
-| `rebuild-swift-release.sh` | Same-version Swift-only repair of verified **unpublished** packages; pass original build commit; refuses native/assets/package-metadata changes |
+| `rebuild-swift-release.sh` | Rebuild Swift using verified local packages; pass their original build commit. Allows version/build-number updates only; refuses native, asset or other packaging changes. Never overwrite published release assets. |
 | `repack-desktop.sh`, `repackage-desktop-fix.sh` | Historical desktop-only repair workflows with script-specific version/input checks; use full release build for new releases |
 | `update-provider-ui.py`, `migrate-bilingual-ui.py` | Historical one-time migrations; not required for normal builds |
 

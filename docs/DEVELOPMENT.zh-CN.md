@@ -89,7 +89,7 @@ python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application
 | `package-remote-source.py` | 校验并打包对应上游、组件和构建源码 |
 | `audit-public.py`、`audit-release.py` | 源码/安装包白名单、个人路径、凭据模式和元数据检查 |
 | `export-public.py` | 白名单源码导出，排除运行数据、构建输出和历史 |
-| `rebuild-swift-release.sh` | 已验证但未发布包的同版本 Swift 修复；传入原构建提交，拒绝原生代码/资源/元数据变化 |
+| `rebuild-swift-release.sh` | 复用已验证本地包重新构建 Swift；传入原包构建提交。仅允许版本号/构建号更新，拒绝原生代码、资源和其他打包变化；不得覆盖已发布资产 |
 | `repack-desktop.sh`、`repackage-desktop-fix.sh` | 历史桌面修复流程，按脚本检查版本和输入；新发布使用完整构建 |
 | `update-provider-ui.py`、`migrate-bilingual-ui.py` | 历史一次性迁移，正常构建无需运行 |
 
