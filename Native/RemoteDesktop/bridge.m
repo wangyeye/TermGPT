@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/gdi/gdi.h>
+#include <freerdp/codecs.h>
 #include <freerdp/input.h>
 #include <freerdp/addin.h>
 #include <freerdp/client/channels.h>
@@ -187,6 +188,9 @@ static BOOL endPaint(rdpContext *context) {
 static BOOL resizeDesktop(rdpContext *context) {
  UINT32 width = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopWidth), height = freerdp_settings_get_uint32(context->settings, FreeRDP_DesktopHeight);
  if (width > 4096 || height > 2160) return FALSE;
+ // xrdp pads bitmap scanlines to four pixels. Resize decoder capacity as
+ // well as the framebuffer; otherwise larger planar updates cannot decode.
+ if (!freerdp_client_codecs_reset(context->codecs, FREERDP_CODEC_ALL, (width + 3) & ~3u, height)) return FALSE;
  return gdi_resize(context->gdi, width, height);
 }
 static BOOL postConnect(freerdp *rdp) {

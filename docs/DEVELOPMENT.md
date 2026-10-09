@@ -60,6 +60,8 @@ The same page also includes a username/password form and a noVNC-style prompt. U
 ### RDP connection probe
 
 Requires Python 3.8+ and network access to the requested host. Run `python3 scripts/probe-rdp.py HOST --port 3389` to check TCP and the initial RDP security negotiation. No credentials are sent. To compare the installed native engine, add `--helper /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop`; it uses empty credentials, stops at certificate verification without accepting it, and never opens a desktop. Diagnostic output can contain the requested host and public certificate details; keep it local. A successful probe does not verify account authentication. If the probe works but the app immediately fails, check macOS Privacy & Security → Local Network permission for TermGPT and retry the app connection.
+For an authenticated resize check, explicitly add `--saved-bookmark BOOKMARK_UUID --resize 1466 873 --resize-after-frame`. This reads only that matching local RDP bookmark and its saved password, and accepts only its previously trusted certificate fingerprint. It connects for 20 seconds and reports frame dimensions without saving pixels or sending keyboard input. `--clipboard-channel` negotiates clipboard support without sending clipboard contents. `--safe-debug` prints filtered core errors; keep diagnostic output private.
+
 
 | Script in `scripts/` | Purpose and usage |
 | --- | --- |
