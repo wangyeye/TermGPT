@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Separate process: framed stdout carries RGBA frames, status, clipboard and certificate challenges.
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
+#include <AudioToolbox/AudioToolbox.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -224,7 +226,7 @@ static void runRDP(void) {
  freerdp_settings_set_bool(s, FreeRDP_SupportMultitransport, FALSE);
  freerdp_settings_set_uint32(s, FreeRDP_MultitransportFlags, 0);
  freerdp_settings_set_bool(s, FreeRDP_DeviceRedirection, FALSE);
- freerdp_settings_set_bool(s, FreeRDP_AudioPlayback, FALSE);
+ freerdp_settings_set_bool(s, FreeRDP_AudioPlayback, TRUE);
  freerdp_settings_set_bool(s, FreeRDP_AudioCapture, FALSE);
  freerdp_settings_set_bool(s, FreeRDP_NlaSecurity, TRUE); freerdp_settings_set_bool(s, FreeRDP_TlsSecurity, TRUE);
  freerdp_settings_set_bool(s, FreeRDP_RdpSecurity, FALSE); freerdp_settings_set_bool(s, FreeRDP_IgnoreCertificate, FALSE);
@@ -309,7 +311,72 @@ static void sendVNCResize(rfbClient *client) {
   SendFramebufferUpdateRequest(client, 0, 0, client->width, client->height, FALSE);
  }
 }
+// QEMU Audio uses signed 16-bit little-endian stereo PCM at the requested rate.
+// Queue capacity is bounded; audio is dropped rather than blocking desktop input.
+static AudioQueueRef vncAudio;
+static atomic_uint vncQueuedBytes;
+static BOOL vncAudioStarted;
+static atomic_bool vncAudioReported;
+static void audioConsumed(void *context, AudioQueueRef queue, AudioQueueBufferRef buffer) {
+ atomic_fetch_sub(&vncQueuedBytes, buffer->mAudioDataByteSize);
+ AudioQueueFreeBuffer(queue, buffer);
+ if (!atomic_exchange(&vncAudioReported, true)) packet(6, [@"VNC audio buffer consumed" dataUsingEncoding:NSUTF8StringEncoding]);
+}
+static void stopVNCAudio(void) {
+ if (vncAudio) { AudioQueueStop(vncAudio, true); AudioQueueDispose(vncAudio, true); vncAudio = NULL; }
+ atomic_store(&vncQueuedBytes, 0); vncAudioStarted = NO;
+}
+static BOOL prepareVNCAudio(void) {
+ if (vncAudio) return YES;
+ atomic_store(&vncAudioReported, false);
+ AudioStreamBasicDescription format = {0}; format.mSampleRate = 44100;
+ format.mFormatID = kAudioFormatLinearPCM; format.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked;
+ format.mBytesPerPacket = 4; format.mFramesPerPacket = 1; format.mBytesPerFrame = 4; format.mChannelsPerFrame = 2; format.mBitsPerChannel = 16;
+ return AudioQueueNewOutput(&format, audioConsumed, NULL, NULL, NULL, 0, &vncAudio) == noErr;
+}
+static rfbBool vncAudioEncoding(rfbClient *client, rfbFramebufferUpdateRectHeader *rect) {
+ if ((int32_t)rect->encoding != -259) return FALSE;
+ uint8_t format[] = {255, 1, 0, 2, 3, 2, 0, 0, 0xac, 0x44};
+ uint8_t enable[] = {255, 1, 0, 0};
+ if (!prepareVNCAudio() || !WriteToRFBServer(client, (char*)format, sizeof(format)) || !WriteToRFBServer(client, (char*)enable, sizeof(enable))) {
+  packet(6, [@"VNC audio output could not start" dataUsingEncoding:NSUTF8StringEncoding]);
+ } else packet(6, [@"VNC QEMU Audio negotiated: PCM 44100 Hz stereo" dataUsingEncoding:NSUTF8StringEncoding]);
+ return TRUE;
+}
+static rfbBool vncAudioMessage(rfbClient *client, rfbServerToClientMsg *message) {
+ if (message->type != 255) return FALSE;
+ uint8_t header[3];
+ if (!ReadFromRFBServer(client, (char*)header, 3) || header[0] != 1) { atomic_store(&stopped, true); return TRUE; }
+ unsigned operation = ((unsigned)header[1] << 8) | header[2];
+ if (operation == 0) { stopVNCAudio(); return TRUE; }
+ if (operation == 1) { prepareVNCAudio(); return TRUE; }
+ if (operation != 2) { atomic_store(&stopped, true); return TRUE; }
+ uint32_t networkLength;
+ if (!ReadFromRFBServer(client, (char*)&networkLength, 4)) { atomic_store(&stopped, true); return TRUE; }
+ uint32_t length = ntohl(networkLength);
+ if (length > 1024 * 1024 || length % 4) { atomic_store(&stopped, true); return TRUE; }
+ NSMutableData *samples = [NSMutableData dataWithLength:length];
+ if (!ReadFromRFBServer(client, samples.mutableBytes, length)) { atomic_store(&stopped, true); return TRUE; }
+ if (!length || !vncAudio || atomic_load(&vncQueuedBytes) + length > 176400) return TRUE;
+ AudioQueueBufferRef buffer;
+ if (AudioQueueAllocateBuffer(vncAudio, length, &buffer) != noErr) return TRUE;
+ memcpy(buffer->mAudioData, samples.bytes, length); buffer->mAudioDataByteSize = length;
+ atomic_fetch_add(&vncQueuedBytes, length);
+ if (AudioQueueEnqueueBuffer(vncAudio, buffer, 0, NULL) != noErr) {
+  atomic_fetch_sub(&vncQueuedBytes, length); AudioQueueFreeBuffer(vncAudio, buffer); return TRUE;
+ }
+ if (!vncAudioStarted) {
+  vncAudioStarted = AudioQueueStart(vncAudio, NULL) == noErr;
+  packet(6, [(vncAudioStarted ? @"VNC audio playback started" : @"VNC audio playback failed") dataUsingEncoding:NSUTF8StringEncoding]);
+ }
+ return TRUE;
+}
+static void vncBell(rfbClient *client) { NSBeep(); }
+static int vncAudioEncodings[] = {-259, 0};
+static rfbClientProtocolExtension vncAudioExtension = {.encodings=vncAudioEncodings, .handleEncoding=vncAudioEncoding, .handleMessage=vncAudioMessage};
+
 static void runVNC(void) {
+ rfbClientRegisterExtension(&vncAudioExtension);
  rememberResize(configuration);
  rfbClientErr = vncError;
  rfbClientLog = vncLog;
@@ -317,6 +384,7 @@ static void runVNC(void) {
  client->serverHost = strdup([configuration[@"host"] UTF8String]); client->serverPort = [configuration[@"port"] intValue];
  client->format.redShift = 0; client->format.greenShift = 8; client->format.blueShift = 16; client->format.bigEndian = FALSE;
  client->GetPassword = vncPassword; client->GetCredential = vncCredential; client->MallocFrameBuffer = vncAllocate; client->FinishedFrameBufferUpdate = vncFrame;
+ client->Bell = vncBell;
  client->GotXCutText = vncClipboard; client->GotXCutTextUTF8 = vncClipboardUTF8;
  client->canHandleNewFBSize = TRUE; client->connectTimeout = 15; client->readTimeout = 20;
  client->appData.useRemoteCursor = FALSE; client->appData.enableJPEG = FALSE;
@@ -347,6 +415,7 @@ static void runVNC(void) {
    int ready = buffered ? 1 : WaitForMessage(client, 15000); if (ready < 0 || (ready && !HandleRFBServerMessage(client))) break;
   }
  }
+ stopVNCAudio();
  status(@"disconnected"); free(client->frameBuffer); client->frameBuffer = NULL; rfbClientCleanup(client);
 }
 int main(void) { @autoreleasepool {

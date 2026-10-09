@@ -28,7 +28,7 @@ Packages are ad-hoc signed, **not Developer ID signed or notarized**. Intel buil
 | Tabs | Center-pane connections, drag ordering, close all and close tabs to the right |
 | AI assistant | ChatGPT, OpenAI API, Ollama, LM Studio and compatible endpoints; streaming, context selection and command actions |
 | File transfer | SFTP browsing/upload/download; rz/sz ZMODEM transfers |
-| Remote desktop | Embedded VNC/RDP, adaptive resolution, text clipboard and certificate trust choices |
+| Remote desktop | Embedded VNC/RDP, adaptive resolution, text clipboard, remote audio and certificate trust choices |
 | Browser | WebKit tabs, optional address bar, Basic/Digest authentication and optional saved passwords |
 | Appearance | System/light/dark theme, English/Chinese UI and persistent sidebar layout |
 
@@ -73,7 +73,9 @@ Web fields disable spellchecking, automatic correction and capitalization; macOS
 
 Desktops open in center tabs. Resolution follows the visible pane when the server supports resizing; otherwise the framebuffer scales proportionally. RDP uses TLS/NLA and offers Trust Once / Always Trust / Cancel. Persistent trust pins a certificate to the bookmarked host/port; changes prompt again.
 
-Clipboard synchronization is optional, text-only, limited to the selected desktop and 1 MiB. RDP supports Unicode; VNC Unicode requires extended clipboard support. Traditional VNC authentication does not encrypt desktop traffic. Audio, drive mapping, gateways, multiple monitors and file/image clipboard are not included.
+Clipboard synchronization is optional, text-only, limited to the selected desktop and 1 MiB. RDP supports Unicode; VNC Unicode requires extended clipboard support. Traditional VNC authentication does not encrypt desktop traffic. Drive mapping, gateways, multiple monitors and file/image clipboard are not included.
+
+Remote audio plays through the Mac’s selected output automatically. RDP requires server-side audio redirection (xrdp also needs its audio modules). VNC supports the standard bell and continuous audio from servers advertising the QEMU Audio extension; ordinary VNC servers without that extension cannot stream sound. Microphone forwarding is not included.
 
 ## Shortcuts
 

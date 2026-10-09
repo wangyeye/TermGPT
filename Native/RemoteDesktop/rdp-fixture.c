@@ -12,6 +12,7 @@
 #include <freerdp/crypto/privatekey.h>
 #include <freerdp/server/cliprdr.h>
 #include <freerdp/server/disp.h>
+#include <freerdp/server/rdpsnd.h>
 #include <freerdp/channels/wtsvc.h>
 #include <freerdp/channels/channels.h>
 #include <winpr/synch.h>
@@ -19,6 +20,20 @@
 #include <winpr/wlog.h>
 #include <winpr/ssl.h>
 static CliprdrServerContext *clip;
+static RdpsndServerContext *sound;
+static AUDIO_FORMAT pcm = {.wFormatTag=1,.nChannels=2,.nSamplesPerSec=44100,.nAvgBytesPerSec=176400,.nBlockAlign=4,.wBitsPerSample=16};
+static UINT confirmed(RdpsndServerContext *ctx, BYTE block, UINT16 timestamp) { puts("audio-confirmed"); fflush(stdout); return CHANNEL_RC_OK; }
+static void audioActivated(RdpsndServerContext *ctx) {
+ for (UINT16 i=0;i<ctx->num_client_formats;i++) {
+  AUDIO_FORMAT *f=&ctx->client_formats[i];
+  if(f->wFormatTag==1 && f->nChannels==2 && f->nSamplesPerSec==44100 && f->wBitsPerSample==16) {
+   if(ctx->SelectFormat(ctx,i)!=CHANNEL_RC_OK)return;
+   INT16 samples[4410*2]; for(size_t j=0;j<4410;j++) samples[j*2]=samples[j*2+1]=(j%100<50?500:-500);
+   for(unsigned j=0;j<4;j++) if(ctx->SendSamples(ctx,samples,4410,j*100)!=CHANNEL_RC_OK)return;
+   ctx->Close(ctx); return;
+  }
+ }
+}
 static HANDLE vcm;
 static DispServerContext *display;
 static atomic_uint resizeWidth, resizeHeight;
@@ -59,7 +74,9 @@ static BOOL activate(freerdp_peer *peer) {
  clip=cliprdr_server_context_new(vcm);if(!clip)return FALSE;
  clip->rdpcontext=peer->context;clip->autoInitializationSequence=TRUE;clip->useLongFormatNames=TRUE;
  clip->ClientCapabilities=clientCapabilities;clip->ClientFormatList=clientFormats;clip->ClientFormatDataRequest=dataRequest;clip->ClientFormatDataResponse=dataResponse;
- puts("connected");fflush(stdout);return clip->Start(clip)==0;
+ sound=rdpsnd_server_context_new(vcm);if(!sound)return FALSE;
+ sound->rdpcontext=peer->context;sound->server_formats=&pcm;sound->num_server_formats=1;sound->src_format=&pcm;sound->latency=100;sound->Activated=audioActivated;sound->ConfirmBlock=confirmed;
+ puts("connected");fflush(stdout);return clip->Start(clip)==0 && sound->Start(sound)==CHANNEL_RC_OK;
 }
 static BOOL keyboard(rdpInput *input,UINT16 flags,UINT8 code){if(code==0x1e){puts("key");fflush(stdout);}return TRUE;}
 static BOOL mouse(rdpInput *input,UINT16 flags,UINT16 x,UINT16 y){if(x==2&&y==1){puts("mouse");fflush(stdout);}return TRUE;}
@@ -99,6 +116,7 @@ int main(int argc,char **argv){
    if(display->Open(display)!=CHANNEL_RC_OK || display->DisplayControlCaps(display)!=CHANNEL_RC_OK)break;
   }
  }
+ if(sound){sound->Stop(sound);rdpsnd_server_context_free(sound);}
  if(display){display->Close(display);disp_server_context_free(display);}
  if(clip){clip->Stop(clip);cliprdr_server_context_free(clip);}WTSCloseServer(vcm);peer->Disconnect(peer);freerdp_peer_context_free(peer);freerdp_peer_free(peer);return 0;
 }

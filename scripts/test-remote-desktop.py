@@ -6,6 +6,7 @@ if sys.platform != 'darwin' or not shutil.which('clang'):
     raise SystemExit('Requires macOS with Command Line Tools')
 helper = Path(sys.argv[1] if len(sys.argv)>1 else '.build/remote-arm64/TermGPTRemoteDesktop').resolve()
 if not helper.is_file(): raise SystemExit('Build scripts/build-remote-desktop.sh first')
+audio_mode = '--audio' in sys.argv
 password_mode = '--password' in sys.argv
 black_mode = '--initial-black' in sys.argv
 resize_mode = '--resize' in sys.argv
@@ -41,7 +42,8 @@ def server():
                 kind=read_exact(connection,1)[0]
                 if kind==0: read_exact(connection,19)
                 elif kind==2:
-                    header=read_exact(connection,3); read_exact(connection,struct.unpack('>H',header[1:])[0]*4)
+                    header=read_exact(connection,3); encodings=read_exact(connection,struct.unpack('>H',header[1:])[0]*4)
+                    if audio_mode: assert -259 in struct.unpack('>'+str(len(encodings)//4)+'i',encodings)
                 elif kind==3:
                     read_exact(connection,9)
                     # Solid red RGBA plus a text clipboard notification.
@@ -52,7 +54,15 @@ def server():
                         if resize_mode:
                             # Screen ID zero is valid and must survive the client's resize request.
                             framebuffer += struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,-308)+struct.pack('>B3xIHHHHI',1,0,0,0,4,3,0)
+                        if audio_mode: framebuffer += struct.pack('>BBHHHHHi',0,0,1,0,0,0,0,-259)
                         connection.sendall(framebuffer+struct.pack('>BBBBI',3,0,0,0,len(text))+text); sent=True
+                elif kind==255 and audio_mode:
+                    subtype,operation=struct.unpack('>BH',read_exact(connection,3));assert subtype==1
+                    if operation==2: assert read_exact(connection,6)==bytes([3,2,0,0,0xac,0x44])
+                    elif operation==0:
+                        samples=b''.join(struct.pack('<hh',500 if i%100<50 else -500,500 if i%100<50 else -500) for i in range(8820))
+                        connection.sendall(bytes([255,1,0,1,255,1,0,2])+struct.pack('>I',len(samples))+samples)
+                    else: raise AssertionError('Unexpected audio operation')
                 elif kind==4:
                     data=read_exact(connection,7); events.put(('key',data[0],struct.unpack('>I',data[3:])[0]))
                 elif kind==5:
@@ -106,6 +116,13 @@ try:
             assert payload[8:]==bytes([255,0,0,0])*12;seen.add(1)
         if kind==3: assert payload==b'remote clipboard fixture';seen.add(3)
     assert seen=={1,3}
+    if audio_mode:
+        deadline=time.monotonic()+10
+        while time.monotonic()<deadline:
+            kind,payload=packets.get(timeout=10)
+            if kind==6 and payload==b'VNC audio buffer consumed':break
+        else: raise AssertionError('VNC audio not consumed')
+        print('VNC QEMU Audio negotiated, PCM playback queue consumed samples.')
     if resize_mode:
         for size in [(800,600),(1000,700)]:
             send(dict(type='resize',width=size[0],height=size[1]))

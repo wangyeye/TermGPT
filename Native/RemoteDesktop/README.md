@@ -5,6 +5,7 @@ The isolated helper links checksum-pinned FreeRDP and LibVNCClient. Build on mac
 ```sh
 ./scripts/build-remote-desktop.sh arm64 .build/remote-arm64 ON
 python3 scripts/test-remote-desktop.py .build/remote-arm64/TermGPTRemoteDesktop --password --resize
+python3 scripts/test-remote-desktop.py .build/remote-arm64/TermGPTRemoteDesktop --audio
 python3 scripts/test-rdp-desktop.py .build/remote-arm64
 ```
 
@@ -17,3 +18,11 @@ For bridge-only fixes after a full release build, `./scripts/repackage-desktop-f
 `patch-freerdp.py` handles early desktop updates sent by older xrdp during authenticated resize reactivation. It discards these obsolete updates until synchronization completes, while initial authentication and normal update validation remain unchanged. Requires Python 3.8+; the build applies it to the disposable pinned FreeRDP snapshot. Direct usage: `python3 Native/RemoteDesktop/patch-freerdp.py /path/to/freerdp/source`. An unexpected upstream guard fails the build for review.
 
 The RDP DesktopResize callback resets codec capacity together with the framebuffer, allowing four-pixel scanline padding used by xrdp. The authenticated live resize probe complements the loopback fixture; the fixture alone does not reproduce this xrdp behavior.
+
+## Audio
+
+RDP enables RDPSND with FreeRDP’s native macOS AudioQueue backend. Audio capture stays disabled; no microphone permission is requested. The server must provide audio redirection; xrdp needs its server audio modules. The loopback RDP fixture sends synthetic PCM and requires the playback acknowledgment alongside resize/input/clipboard checks.
+
+VNC advertises QEMU Audio pseudo-encoding -259. Only a server announcing it receives format/enable requests. The requested format is signed 16-bit little-endian stereo PCM, 44100 Hz. Playback uses AudioQueue with a bounded one-second queue; excess audio is dropped to preserve desktop responsiveness. Invalid or oversized packets close the connection. Standard RFB Bell uses the system alert sound. Without the extension a VNC server cannot stream continuous audio. `--audio` verifies negotiation and AudioQueue consumption with a quiet synthetic tone; it does not read saved credentials. Both tests require macOS, Python 3, Command Line Tools and a built helper; RDP also checks OpenSSL availability.
+
+Run audio tests with an available Mac output device. Playback queue/acknowledgment verifies the software path, not whether a person hears the speaker. Closing a session stops and disposes its audio queue.

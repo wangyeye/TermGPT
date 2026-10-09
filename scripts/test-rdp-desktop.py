@@ -61,12 +61,13 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
                 assert len(payload)==8+1000*700*4;break
             if time.monotonic()>deadline:raise AssertionError('RDP did not resize its framebuffer')
         send(dict(type='key',scan=0x1e,keysym=0x61,down=True));send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1));send(dict(type='clipboard',text='local RDP fixture 中文'))
-        expected={'key','mouse','clipboard','resize 1000 700'};deadline=time.monotonic()+20
+        expected={'key','mouse','clipboard','resize 1000 700','audio-confirmed'};deadline=time.monotonic()+20
         while expected and time.monotonic()<deadline:expected.discard(events.get(timeout=20))
         assert not expected,expected
         send(dict(type='stop'));client.wait(timeout=5)
         print('Real TLS RDP certificate approval, bitmap, keyboard, pointer and bidirectional Unicode clipboard passed.')
         print('RDP initial 800x600 resolution, dynamic 1000x700 monitor layout and resized framebuffer passed.')
+        print('RDP PCM audio negotiation and playback acknowledgment passed.')
         print('Fixture uses TLS security; production Windows NLA accounts require separate live verification.')
     finally:
         for process in [client,server]:
