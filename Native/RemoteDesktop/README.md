@@ -21,7 +21,7 @@ The RDP DesktopResize callback resets codec capacity together with the framebuff
 
 ## Audio
 
-RDP enables RDPSND with FreeRDP’s native macOS AudioQueue backend. Audio capture stays disabled; no microphone permission is requested. The server must provide audio redirection; xrdp needs its server audio modules. The loopback RDP fixture sends synthetic PCM and requires the playback acknowledgment alongside resize/input/clipboard checks.
+RDP enables RDPSND with FreeRDP’s native macOS AVAudioEngine backend. Audio capture stays disabled; no microphone permission is requested. The server must provide audio redirection; xrdp needs its server audio modules. The loopback RDP fixture sends synthetic PCM and requires the playback acknowledgment alongside resize/input/clipboard checks.
 
 VNC advertises QEMU Audio pseudo-encoding -259. Only a server announcing it receives format/enable requests. The requested format is signed 16-bit little-endian stereo PCM, 44100 Hz. Playback uses AudioQueue with a bounded one-second queue; excess audio is dropped to preserve desktop responsiveness. Invalid or oversized packets close the connection. Standard RFB Bell uses the system alert sound. Without the extension a VNC server cannot stream continuous audio. `--audio` verifies negotiation and AudioQueue consumption with a quiet synthetic tone; it does not read saved credentials. Both tests require macOS, Python 3, Command Line Tools and a built helper; RDP also checks OpenSSL availability.
 
