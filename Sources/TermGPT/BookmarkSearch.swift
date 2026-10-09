@@ -57,9 +57,18 @@ struct QuickOpenPane: View {
             }
             Text(L("↑↓ 选择 · 回车打开 · Esc 关闭")).font(.caption).foregroundStyle(.secondary)
         }.padding(16).frame(width: 560, height: 440)
-            .onAppear { focused = true; selection = ids.first }
+            .onAppear { selection = ids.first; DispatchQueue.main.async { focused = true } }
             .onChange(of: query) { _ in selection = ids.first }
             .onExitCommand(perform: close)
+            .onReceive(NotificationCenter.default.publisher(for: .quickOpenKey)) { event in
+                guard let key = event.object as? UInt16 else { return }
+                if key == 36 { choose(selection ?? ids.first) }
+                else if key == 53 { close() }
+                else if !ids.isEmpty {
+                    let index = ids.firstIndex(of: selection ?? "") ?? 0
+                    selection = ids[min(max(0, index + (key == 125 ? 1 : -1)), ids.count - 1)]
+                }
+            }
             .onMoveCommand { direction in
                 guard !ids.isEmpty else { return }; let index = ids.firstIndex(of: selection ?? "") ?? 0
                 if direction == .down { selection = ids[min(index + 1, ids.count - 1)] }
@@ -67,11 +76,22 @@ struct QuickOpenPane: View {
             }
     }
 }
+private extension Notification.Name { static let quickOpenKey = Notification.Name("TermGPTQuickOpenKey") }
+private final class QuickOpenPanel: NSPanel {
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, [UInt16(36), 53, 125, 126].contains(event.keyCode),
+           event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+           (firstResponder as? NSTextView)?.hasMarkedText() != true {
+            NotificationCenter.default.post(name: .quickOpenKey, object: event.keyCode); return
+        }
+        super.sendEvent(event)
+    }
+}
 final class QuickOpenWindow {
     private static var window: NSPanel?
     static func show(_ workspace: Workspace) {
         if let window, window.isVisible { window.makeKeyAndOrderFront(nil); return }
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let panel = QuickOpenPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false; panel.title = L("快速打开")
         panel.contentView = NSHostingView(rootView: QuickOpenPane(workspace: workspace, close: { [weak panel] in panel?.close() }))
         window = panel; panel.center(); panel.makeKeyAndOrderFront(nil)
