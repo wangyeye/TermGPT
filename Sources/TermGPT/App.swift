@@ -62,6 +62,10 @@ struct MainView: View {
         .environment(\.locale, Locale(identifier: workspace.preferences.language.resolved() == .chinese ? "zh-Hans" : "en"))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                Button { workspace.commandLibraryShown = true } label: { Image(systemName: "terminal") }
+                    .help(L("常用命令库")).accessibilityLabel(L("常用命令库"))
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button { sftpBookmark = workspace.activeSession?.bookmark } label: { Image(systemName: "folder") }
                     .disabled(workspace.activeSession?.bookmark?.kind != .ssh).help(L("打开当前主机 SFTP")).accessibilityLabel(L("打开当前主机 SFTP"))
             }
