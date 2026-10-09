@@ -120,14 +120,14 @@ VNC/RDP desktops fill the tab without a top status bar. Right-click the desktop 
 
 Desktop logs omit passwords, configured host/user/domain values, clipboard and pixels; at most 20 sessions are retained, 2 MiB each. Use the tab's log menu and macOS Console crash reports to investigate failures.
 
-## Build, test and release
-
-### Terminal search, commands and workspace restoration
+## Terminal search, commands and workspace restoration
 
 - With a running terminal selected, press **Command-F**. Search highlights the current match in the actual terminal scrollback; use previous/next buttons or Return to cycle. `Aa` matches case and `.*` enables regular expressions. Refresh searches output received since the last search. Escape closes the bar. Search uses physical terminal rows (wrapped lines are separate), with a maximum of 10,000 matches.
 - Open **Terminal → Command Library** (**Command-Shift-K**) to create, edit, delete or search commands by name, folder, command and notes. AI shell cards also offer **Save Command**. Copy any command; Insert sends a single line to the active terminal without running it. Multiline commands are copy-only.
 - **Settings → Restore workspace on startup** defaults on. Tab order, selected tab and existing layout settings persist in local `workspace.json`; restored tabs stay disconnected until **Restore Connection** is clicked. Bookmark edits apply on restart and removed bookmarks are skipped. Terminal output, running processes and remote sessions are not restored. Disable the setting to start with a new local terminal.
 - Commands and workspace references remain local and are excluded from releases. Saved commands are plain text in the local configuration; avoid embedding passwords.
+
+## Build, test and release
 
 See the [development and script guide](docs/DEVELOPMENT.md) for prerequisites, all script purposes, testing, diagnostics and release instructions.
 
