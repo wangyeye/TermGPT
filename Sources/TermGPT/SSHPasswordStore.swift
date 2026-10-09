@@ -6,6 +6,6 @@ enum SSHPasswordStore {
         try store.update { $0.sshPasswords[id.uuidString] = password }
     }
     static func remove(id: UUID, store: CredentialStore = .shared) throws {
-        try store.update { $0.sshPasswords.removeValue(forKey: id.uuidString) }
+        try store.update { $0.sshPasswords.removeValue(forKey: id.uuidString); $0.rdpCertificates.removeValue(forKey: id.uuidString) }
     }
 }

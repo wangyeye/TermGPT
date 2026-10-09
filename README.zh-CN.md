@@ -184,7 +184,7 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 
 桌面支持键盘、鼠标、滚轮和画面缩放。RDP 建立 1440×900 会话，接收画面上限为 4096×2160；上方提供 **Ctrl+Alt+Del** 按钮。可在书签中关闭剪贴板同步；启用时仅当前桌面标签页同步文本，上限 1 MiB。RDP 支持 Unicode；VNC 中文等 Unicode 文本需要服务器支持扩展剪贴板，传统 VNC 仅支持 Latin-1 文本。剪贴板文件和图片不传输。
 
-RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和指纹，由用户选择仅本次信任或取消，不永久跳过证书验证。传统 VNC 密码认证不加密桌面流量，请在可信网络或安全隧道中使用。密码保存到本机限制权限的 JSON 凭据文件，不使用钥匙串。SFTP 和 AI 命令执行仅适用于终端标签页，不会发送到桌面。
+RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和指纹，可选择“仅本次信任”“始终信任”或“取消”。始终信任将 SHA-256 指纹保存到本机限制权限的 `credentials.json`，绑定当前书签的主机与端口；完全匹配时自动通过，证书变化时重新询问。删除书签也会删除对应的信任记录。传统 VNC 密码认证不加密桌面流量，请在可信网络或安全隧道中使用。密码保存到本机限制权限的 JSON 凭据文件，不使用钥匙串。SFTP 和 AI 命令执行仅适用于终端标签页，不会发送到桌面。
 
 无需外部桌面客户端或 Homebrew 运行库。客户端库、构建环境和许可证说明见 [Vendor/RemoteDesktop/README.md](Vendor/RemoteDesktop/README.md)。`scripts/build-remote-desktop.sh` 构建 ARM/Intel 桌面组件；`scripts/test-remote-desktop.py`、`scripts/test-rdp-desktop.py` 使用合成本机服务验证协议，不读取真实凭据。不包含音频、磁盘映射、网关、多显示器或文件剪贴板功能。
 

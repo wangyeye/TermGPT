@@ -136,7 +136,13 @@ final class RemoteDesktop: ObservableObject {
             NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string); clipboardCount = NSPasteboard.general.changeCount
         case 4:
             log?.record("certificate", "approval requested")
-            if let values = try? JSONDecoder().decode(RemoteCertificate.self, from: packet.data) { certificate = values; status = L("等待确认证书"); presentCertificate(); changed?() }
+            if let values = try? JSONDecoder().decode(RemoteCertificate.self, from: packet.data) {
+                certificate = values
+                if (try? RDPCertificateTrust.matches(id: bookmark.id, host: bookmark.host, port: bookmark.port, certificate: values)) == true {
+                    log?.record("certificate", "saved certificate fingerprint matched"); answerCertificate(true)
+                } else { status = L("等待确认证书"); presentCertificate() }
+                changed?()
+            }
         case 5: status = L("当前 VNC 服务器不支持 Unicode 剪贴板文本。"); changed?()
         case 6: log?.record("protocol", String(decoding: packet.data, as: UTF8.self))
         default: break
@@ -149,17 +155,26 @@ final class RemoteDesktop: ObservableObject {
         guard active, connected, bookmark.syncClipboard, let text = pasteboard.string(forType: .string), text.utf8.count <= 1024 * 1024 else { return }
         send(["type": "clipboard", "text": text])
     }
-    func answerCertificate(_ accept: Bool) { log?.record("certificate", accept ? "accepted for this session" : "rejected"); send(["type": "certificate", "accept": accept]); certificate = nil }
+    func answerCertificate(_ accept: Bool, remember: Bool = false) {
+        if accept && remember, let certificate {
+            do { try RDPCertificateTrust.remember(id: bookmark.id, host: bookmark.host, port: bookmark.port, certificate: certificate) }
+            catch { status = L("无法保存证书信任，请重试"); changed?(); return }
+        }
+        log?.record("certificate", accept ? (remember ? "certificate trust saved" : "accepted for this session") : "rejected")
+        send(["type": "certificate", "accept": accept]); certificate = nil
+    }
     func presentCertificate() {
         guard !closed, active, let certificate, certificateAlert == nil, let window = view.window, window.attachedSheet == nil else { return }
         let alert = NSAlert(); alert.alertStyle = .warning
         alert.messageText = L("验证 RDP 服务器证书")
-        alert.informativeText = L("无法验证服务器证书。请核对服务器身份，是否仅本次信任？") + "\n\n" + certificate.host + "\n" + certificate.subject + "\n" + certificate.issuer + "\n" + certificate.fingerprint
-        alert.addButton(withTitle: L("仅本次信任")); alert.addButton(withTitle: L("取消"))
+        alert.informativeText = L("无法验证服务器证书。请核对服务器身份。始终信任会保存此主机和端口的证书指纹，证书变更时重新询问。") + "\n\n" + certificate.host + ":" + String(bookmark.port) + "\n" + certificate.subject + "\n" + certificate.issuer + "\n" + certificate.fingerprint
+        alert.addButton(withTitle: L("仅本次信任")); alert.addButton(withTitle: L("始终信任")); alert.addButton(withTitle: L("取消"))
+        alert.buttons.last?.keyEquivalent = "\u{1b}"
         certificateAlert = alert
         alert.beginSheetModal(for: window) { [weak self] response in
             guard let self else { return }; self.certificateAlert = nil
-            guard !self.closed else { return }; self.answerCertificate(response == .alertFirstButtonReturn)
+            guard !self.closed else { return }
+            self.answerCertificate(response == .alertFirstButtonReturn || response == .alertSecondButtonReturn, remember: response == .alertSecondButtonReturn)
         }
     }
     private func ended(message: String? = nil) {

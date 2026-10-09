@@ -7,8 +7,9 @@ struct CredentialConfiguration: Codable {
     var chatGPT: ChatGPTVault?
     var apiKey = ""
     var sshPasswords: [String: String] = [:]
+    var rdpCertificates: [String: RDPCertificatePin] = [:]
     init() {}
-    enum CodingKeys: String, CodingKey { case schemaVersion, chatGPT, apiKey, sshPasswords }
+    enum CodingKeys: String, CodingKey { case schemaVersion, chatGPT, apiKey, sshPasswords, rdpCertificates }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
@@ -16,6 +17,7 @@ struct CredentialConfiguration: Codable {
         chatGPT = try c.decodeIfPresent(ChatGPTVault.self, forKey: .chatGPT)
         apiKey = try c.decodeIfPresent(String.self, forKey: .apiKey) ?? ""
         sshPasswords = try c.decodeIfPresent([String: String].self, forKey: .sshPasswords) ?? [:]
+        rdpCertificates = try c.decodeIfPresent([String: RDPCertificatePin].self, forKey: .rdpCertificates) ?? [:]
     }
 }
 final class CredentialStore: @unchecked Sendable {
