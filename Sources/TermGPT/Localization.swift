@@ -15,6 +15,17 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "快速打开": "Quick Open",
+        "快速打开 · ⌘P": "Quick Open · ⌘P",
+        "最近连接": "Recent Connections",
+        "清空": "Clear",
+        "搜索名称、地址、协议或文件夹": "Search name, address, protocol or folder",
+        "搜索书签或已打开标签…": "Search bookmarks or open tabs…",
+        "已打开标签": "Open Tabs",
+        "书签（最近使用优先）": "Bookmarks (Recent First)",
+        "搜索结果": "Search Results",
+        "没有匹配的书签或标签": "No matching bookmarks or tabs",
+        "↑↓ 选择 · 回车打开 · Esc 关闭": "↑↓ Select · Enter Open · Esc Close",
         "重连": "Reconnect",
         "断线自动重连": "Automatically Reconnect",
         "连接诊断": "Connection Diagnostics",

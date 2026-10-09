@@ -3,6 +3,10 @@ import AppKit
 import SwiftTerm
 
 final class WorkTerminal: LocalProcessTerminalView {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "p" { return false }
+        return super.performKeyEquivalent(with: event)
+    }
     var ask: ((String, String) -> Void)?
     lazy var zmodem = ZmodemTransfer(view: self)
     override func dataReceived(slice: ArraySlice<UInt8>) { zmodem.receive(Data(slice)) }
@@ -147,6 +151,12 @@ struct RunProposal: Identifiable {
     @Published var locked: UUID?
     @Published var contextMode = ContextMode.auto
     @Published var bookmarks: [Bookmark] = []
+    @Published var bookmarkQuery = ""
+    @Published var recentBookmarkIDs: [UUID] = []
+    var filteredBookmarks: [Bookmark] { bookmarks.filter { BookmarkSearch.matches($0, query: bookmarkQuery, folders: folders) } }
+    var recentBookmarks: [Bookmark] { BookmarkSearch.recent(recentBookmarkIDs, bookmarks: bookmarks) }
+    func recordRecent(_ id: UUID) { recentBookmarkIDs.removeAll { $0 == id }; recentBookmarkIDs.insert(id, at: 0); recentBookmarkIDs = Array(recentBookmarkIDs.prefix(10)); persist() }
+    func clearRecent() { recentBookmarkIDs = []; persist() }
     @Published var folders: [BookmarkFolder] = []
     @Published var editingBookmark: Bookmark?
     @Published var foldersShown = false
@@ -173,7 +183,7 @@ struct RunProposal: Identifiable {
     var contextSession: TerminalSession? { sessions.first { $0.id == (locked ?? active) && $0.isTerminal } }
     var currentChat: Chat { chats.first { $0.id == chatID } ?? chats[0] }
     init() {
-        if let state = DiskStore.load() { bookmarks = state.bookmarks; folders = state.folders ?? []; preferences = state.preferences; if !state.chats.isEmpty { chats = state.chats } }
+        if let state = DiskStore.load() { bookmarks = state.bookmarks; recentBookmarkIDs = BookmarkSearch.recent(state.recentBookmarkIDs ?? [], bookmarks: state.bookmarks).map(\.id); folders = state.folders ?? []; preferences = state.preferences; if !state.chats.isEmpty { chats = state.chats } }
         Localization.shared.selection = preferences.language
         chatID = chats.first?.id
         newLocal()
@@ -187,7 +197,7 @@ struct RunProposal: Identifiable {
         persist()
     }
     func persist() {
-        do { try DiskStore.save(SavedState(bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        do { try DiskStore.save(SavedState(recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
     }
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()
@@ -201,7 +211,7 @@ struct RunProposal: Identifiable {
         persist()
     }
     func deleteBookmark(_ id: UUID) {
-        do { try SSHPasswordStore.remove(id: id); bookmarks.removeAll { $0.id == id }; persist() }
+        do { try SSHPasswordStore.remove(id: id); bookmarks.removeAll { $0.id == id }; recentBookmarkIDs.removeAll { $0 == id }; persist() }
         catch { self.error = error.localizedDescription }
     }
     func saveFolders(_ updated: [BookmarkFolder]) {
@@ -241,7 +251,7 @@ struct RunProposal: Identifiable {
         alert.addButton(withTitle: L("取消"))
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            active = matches.first(where: { $0.id == active })?.id ?? matches[0].id
+            active = matches.first(where: { $0.id == active })?.id ?? matches[0].id; recordRecent(bookmark.id)
         case .alertSecondButtonReturn: open(name: bookmark.name, bookmark: bookmark)
         default: break
         }
@@ -254,7 +264,7 @@ struct RunProposal: Identifiable {
             self.input = L("%@：请分析选中的终端文本。", action)
             self.notice = "已关联所选文本，点击发送后提交给 AI"
         }
-        do { try session.start(preferences); sessions.append(session); active = session.id } catch { self.error = error.localizedDescription }
+        do { try session.start(preferences); sessions.append(session); active = session.id; if let bookmark { recordRecent(bookmark.id) } } catch { self.error = error.localizedDescription }
     }
     func newLocal() { open(name: sessions.contains { $0.bookmark == nil } ? "Local \(sessions.count + 1)" : "Local") }
     func close(_ id: UUID) {

@@ -160,6 +160,7 @@ enum Safety {
     }
 }
 struct SavedState: Codable {
+    var recentBookmarkIDs: [UUID]? = nil
     var bookmarks: [Bookmark]
     var folders: [BookmarkFolder]?
     var chats: [Chat]

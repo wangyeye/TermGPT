@@ -365,6 +365,7 @@ final class DesktopCanvas: NSView {
     override func keyDown(with event: NSEvent) { key(event, down: true) }
     override func keyUp(with event: NSEvent) { key(event, down: false) }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "p" { return false }
         guard window?.firstResponder === self else { return false }; key(event, down: true); return true
     }
     private func key(_ event: NSEvent, down: Bool) {

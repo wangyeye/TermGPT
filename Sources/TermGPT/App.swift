@@ -21,6 +21,7 @@ enum TermGPTIcon {
             }
             CommandGroup(replacing: .appSettings) { Button(L("设置…")) { workspace.settingsShown = true }.keyboardShortcut(",") }
             CommandMenu(L("终端")) {
+                Button(L("快速打开")) { QuickOpenWindow.show(workspace) }.keyboardShortcut("p")
                 Button(L("终端历史与搜索")) { workspace.historyShown = true }.keyboardShortcut("f")
                 Button(L("导出会话")) { workspace.export() }
             }
@@ -104,13 +105,21 @@ struct MainView: View {
             Text("AI TERMINAL WORKBENCH").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
             Divider()
             HStack { Text(L("连接书签")).font(.headline); Spacer(); Button { workspace.foldersShown = true } label: { Image(systemName: "folder.badge.gearshape") }.buttonStyle(.plain).help(L("管理文件夹")); Button { workspace.editingBookmark = nil; workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
+            TextField(L("搜索名称、地址、协议或文件夹"), text: $workspace.bookmarkQuery).textFieldStyle(.roundedBorder)
+            Button(L("快速打开 · ⌘P")) { QuickOpenWindow.show(workspace) }.buttonStyle(.plain)
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    if workspace.bookmarkQuery.isEmpty && !workspace.recentBookmarks.isEmpty {
+                        HStack { Text(L("最近连接")).font(.caption).foregroundStyle(.secondary); Spacer(); Button(L("清空")) { workspace.clearRecent() }.buttonStyle(.plain).font(.caption) }
+                        ForEach(workspace.recentBookmarks) { BookmarkRow(workspace: workspace, bookmark: $0).padding(.leading, 11) }
+                        Divider()
+                    }
                     Button { workspace.newLocal() } label: { Label(L("Local Shell"), systemImage: "laptopcomputer").frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 18).padding(.vertical, 8).contentShape(Rectangle()) }.buttonStyle(.plain)
-                    ForEach(workspace.folders) { folder in BookmarkFolderSection(workspace: workspace, folder: folder) }
-                    ForEach(workspace.bookmarks.filter { item in item.folderID == nil || !workspace.folders.contains(where: { $0.id == item.folderID }) }) { bookmark in
+                    ForEach(workspace.folders.filter { folder in workspace.bookmarkQuery.isEmpty || workspace.filteredBookmarks.contains { $0.folderID == folder.id } }) { folder in BookmarkFolderSection(workspace: workspace, folder: folder) }
+                    ForEach(workspace.filteredBookmarks.filter { item in item.folderID == nil || !workspace.folders.contains(where: { $0.id == item.folderID }) }) { bookmark in
                         BookmarkRow(workspace: workspace, bookmark: bookmark).padding(.leading, 11)
                     }
+                    if !workspace.bookmarkQuery.isEmpty && workspace.filteredBookmarks.isEmpty { Text(L("没有匹配的书签或标签")).font(.caption).foregroundStyle(.secondary) }
                     if workspace.bookmarks.isEmpty { Text(L("添加主机书签后点击连接。SSH 密码及主机指纹确认会在真实终端中显示。")).font(.caption).foregroundStyle(.secondary).padding(.vertical, 10) }
                 }
             }
@@ -509,8 +518,8 @@ struct BookmarkFolderSection: View {
                     Button(L("上移")) { if let target = workspace.folderNeighbor(folder.id, offset: -1) { workspace.reorderFolder(folder.id, to: target) } }.disabled(workspace.folderNeighbor(folder.id, offset: -1) == nil)
                     Button(L("下移")) { if let target = workspace.folderNeighbor(folder.id, offset: 1) { workspace.reorderFolder(folder.id, to: target) } }.disabled(workspace.folderNeighbor(folder.id, offset: 1) == nil)
                 }
-            if expanded {
-                ForEach(workspace.bookmarks.filter { $0.folderID == folder.id }) {
+            if expanded || !workspace.bookmarkQuery.isEmpty {
+                ForEach(workspace.filteredBookmarks.filter { $0.folderID == folder.id }) {
                     BookmarkRow(workspace: workspace, bookmark: $0).padding(.leading, 36)
                 }
             }

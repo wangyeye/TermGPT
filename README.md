@@ -40,6 +40,10 @@ Diagnostics check the TCP port without logging in. SSH config aliases are resolv
 
 Desktop tab menus show audio state and **Mute/Unmute**. Waiting for server audio does not prove the server has its audio modules. VNC bell-only status means continuous audio has not been negotiated. Muting affects that connection, including VNC bells, and is retained across manual reconnect in the same tab. No desktop top status bar is added.
 
+### Find and open connections
+
+Search the sidebar by bookmark name, address, protocol or folder. Multiple words must all match; matching folders expand temporarily without changing bookmark order. **⌘P** opens Quick Open from any layout: type to filter, use arrows and Enter, or click a row. Open tabs switch directly; bookmark entries use the existing duplicate-tab choice. Esc closes the window. The sidebar’s Recent Connections contains the last ten opened/switched bookmarks, stored as IDs in `workspace.json`; it includes connection attempts, not only successful authentication. Clear removes history without deleting bookmarks; renamed bookmarks update automatically and deleted bookmarks disappear.
+
 ## Quick start
 
 1. Open **Local Shell**, or click **+** beside Connection Bookmarks.
