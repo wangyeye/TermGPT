@@ -48,7 +48,7 @@ struct TerminalFindBar: View {
             Button(L("刷新"), action: refresh)
             Button { session.searchShown = false } label: { Image(systemName: "xmark") }.help(L("关闭"))
         }.padding(8).textFieldStyle(.roundedBorder)
-            .onAppear { focused = true }.onChange(of: query) { _ in refresh() }
+            .onAppear { DispatchQueue.main.async { focused = true } }.onChange(of: query) { _ in refresh() }
             .onChange(of: sensitive) { _ in refresh() }.onChange(of: regex) { _ in refresh() }
             .onExitCommand { session.searchShown = false }
     }
@@ -76,8 +76,8 @@ struct CommandLibraryView: View {
                             Button(L("填入")) { workspace.insert(item.command) }.disabled(!Safety.insertable(item.command) || workspace.activeSession?.running != true || workspace.activeSession?.isTerminal != true || workspace.activeSession?.transferring == true)
                             Button(L("编辑")) { draft = item }
                             Button(L("删除")) { deleting = item }
-                        }
-                    }.padding(.vertical, 6)
+                        }.buttonStyle(.bordered)
+                    }.padding(.vertical, 6).accessibilityElement(children: .contain)
                 }
             }
             HStack { Text(L("命令仅保存在本机，请勿在其中保存密码。多行命令可复制。" )).font(.caption).foregroundStyle(.secondary); Spacer(); Button(L("关闭")) { dismiss() } }
