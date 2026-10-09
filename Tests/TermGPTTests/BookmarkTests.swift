@@ -56,3 +56,15 @@ final class WebBookmarkTests: XCTestCase {
         }
     }
 }
+
+final class WebAddressBarPreferencesTests: XCTestCase {
+    func testLegacyDefaultsAndExplicitVisibilityRoundTrip() throws {
+        XCTAssertFalse(Preferences().showWebAddressBar)
+        XCTAssertFalse(try JSONDecoder().decode(Preferences.self, from: Data("{}".utf8)).showWebAddressBar)
+        for visible in [true, false] {
+            var settings = Preferences(); settings.showWebAddressBar = visible
+            let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(settings))
+            XCTAssertEqual(restored.showWebAddressBar, visible)
+        }
+    }
+}

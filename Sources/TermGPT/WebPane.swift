@@ -62,9 +62,11 @@ struct WebHost: NSViewRepresentable {
 }
 struct WebPane: View {
     @ObservedObject var browser: WebSession
+    let showAddressBar: Bool
     @State private var input = ""
     var body: some View {
         VStack(spacing: 0) {
+            if showAddressBar {
             HStack {
                 Button { browser.view.goBack() } label: { Image(systemName: "chevron.left") }.disabled(!browser.canGoBack).help(L("后退"))
                 Button { browser.view.goForward() } label: { Image(systemName: "chevron.right") }.disabled(!browser.canGoForward).help(L("前进"))
@@ -74,8 +76,9 @@ struct WebPane: View {
                 }
                 if browser.loading { ProgressView().controlSize(.small) }
             }.padding(8)
-            if !browser.error.isEmpty { Text(browser.error).foregroundStyle(.red).font(.caption).padding(8).textSelection(.enabled) }
             Divider()
+            }
+            if !browser.error.isEmpty { Text(browser.error).foregroundStyle(.red).font(.caption).padding(8).textSelection(.enabled) }
             WebHost(browser: browser)
         }.onAppear { input = browser.address }.onChange(of: browser.address) { input = $0 }
     }

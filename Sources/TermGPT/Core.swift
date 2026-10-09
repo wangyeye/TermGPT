@@ -103,10 +103,11 @@ struct Preferences: Codable {
     var language = InterfaceLanguage.system
     var showBookmarks = true
     var showChat = true
+    var showWebAddressBar = false
     var saveMemory = true
     var redactBeforeSending = true
     init() {}
-    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, language, showBookmarks, showChat, saveMemory, redactBeforeSending }
+    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, language, showBookmarks, showChat, showWebAddressBar, saveMemory, redactBeforeSending }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         endpoint = try c.decodeIfPresent(String.self, forKey: .endpoint) ?? endpoint
@@ -120,6 +121,7 @@ struct Preferences: Codable {
         language = try c.decodeIfPresent(InterfaceLanguage.self, forKey: .language) ?? .system
         showBookmarks = try c.decodeIfPresent(Bool.self, forKey: .showBookmarks) ?? true
         showChat = try c.decodeIfPresent(Bool.self, forKey: .showChat) ?? true
+        showWebAddressBar = try c.decodeIfPresent(Bool.self, forKey: .showWebAddressBar) ?? false
         saveMemory = try c.decodeIfPresent(Bool.self, forKey: .saveMemory) ?? saveMemory
         redactBeforeSending = try c.decodeIfPresent(Bool.self, forKey: .redactBeforeSending) ?? true
     }

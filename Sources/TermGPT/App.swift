@@ -174,7 +174,7 @@ struct MainView: View {
                 ZStack {
                     ForEach(workspace.sessions) { pane in
                         Group {
-                            if let web = pane.web { WebPane(browser: web) }
+                            if let web = pane.web { WebPane(browser: web, showAddressBar: workspace.preferences.showWebAddressBar) }
                             else if let desktop = pane.desktop { DesktopPane(desktop: desktop, active: workspace.active == pane.id) }
                             else { TerminalHost(session: pane) }
                         }
@@ -374,6 +374,8 @@ struct SettingsView: View {
                             ForEach(InterfaceTheme.allCases, id: \.self) { Text(L($0.rawValue)).tag($0) }
                         }
                         Text(L("主题应用于整个界面、弹窗、聊天输入框和终端。")).font(.caption).foregroundStyle(.secondary)
+                        Toggle(L("显示网页地址栏"), isOn: $preferences.showWebAddressBar)
+                        Text(L("默认隐藏网页导航栏，关闭后仅显示网页主体。保存后立即生效。" )).font(.caption).foregroundStyle(.secondary)
                         Toggle(L("保存聊天到本机"), isOn: $preferences.saveMemory)
                         Toggle(L("发送前自动脱敏"), isOn: $preferences.redactBeforeSending)
                         Text(preferences.redactBeforeSending ? L("自动替换消息、历史聊天及终端上下文中的常见敏感字段，不弹出确认框。") : L("按原文发送消息、历史聊天及终端上下文；其中的密码、Token 或私钥也会发送给当前 AI Provider。"))
