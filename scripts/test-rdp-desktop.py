@@ -54,16 +54,16 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
             elif kind==2 and b'failed' in payload:raise AssertionError(payload.decode())
         assert seen=={'certificate','frame','clipboard'},seen
         send(dict(type='resize',width=1000,height=700))
-        send(dict(type='key',scan=0x1e,keysym=0x61,down=True));send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1));send(dict(type='clipboard',text='local RDP fixture 中文'))
-        expected={'key','mouse','clipboard','resize 1000 700'};deadline=time.monotonic()+20
-        while expected and time.monotonic()<deadline:expected.discard(events.get(timeout=20))
-        assert not expected,expected
         deadline=time.monotonic()+20
         while True:
             kind,payload=packets.get(timeout=20)
             if kind==1 and struct.unpack('>II',payload[:8])==(1000,700):
                 assert len(payload)==8+1000*700*4;break
             if time.monotonic()>deadline:raise AssertionError('RDP did not resize its framebuffer')
+        send(dict(type='key',scan=0x1e,keysym=0x61,down=True));send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1));send(dict(type='clipboard',text='local RDP fixture 中文'))
+        expected={'key','mouse','clipboard','resize 1000 700'};deadline=time.monotonic()+20
+        while expected and time.monotonic()<deadline:expected.discard(events.get(timeout=20))
+        assert not expected,expected
         send(dict(type='stop'));client.wait(timeout=5)
         print('Real TLS RDP certificate approval, bitmap, keyboard, pointer and bidirectional Unicode clipboard passed.')
         print('RDP initial 800x600 resolution, dynamic 1000x700 monitor layout and resized framebuffer passed.')
