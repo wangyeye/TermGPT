@@ -51,6 +51,8 @@
 
 ### WEB 书签
 
+浏览器标签页右键菜单提供“强制刷新”，从服务器重新加载页面并绕过缓存，地址栏隐藏时也可使用。
+
 导航和地址栏**默认隐藏**。设置中开启“显示网页地址栏”，即可使用前进、后退、刷新和 URL 输入框；切换设置不重新加载网页。
 
 HTTP Basic/Digest 验证会弹出用户名和密码框。勾选**保存密码**后，重启也可自动登录；按协议、主机、端口、认证域和方式隔离凭据。普通用户名/密码表单提交时会询问是否保存。选择保存并自动填充后，下次访问同一网站自动填入，但不自动提交。支持动态表单；第三方嵌入页面、通行密钥、多步骤或非标准控件可能仍需手动输入。JavaScript 密码弹窗（包括 noVNC）也支持可选保存和预填。
@@ -119,5 +121,3 @@ VNC/RDP 桌面直接铺满标签页，不显示顶部状态栏。右键桌面标
 主程序使用 [MIT License](LICENSE)。SwiftTerm 保留 MIT 声明；独立 lrzsz 组件使用 GPL-2.0-or-later，桌面组件使用 GPL-3.0-or-later。发行版 `TermGPT-RemoteDesktop-source.tar.gz` 提供对应桌面源码。详见[桌面依赖说明](Vendor/RemoteDesktop/README.md)、[lrzsz 源码](Vendor/lrzsz)和[SwiftTerm 修改说明](Vendor/SwiftTerm/TERMGPT-PATCHES.md)。
 
 尚未实现分屏终端、多层书签文件夹、多终端联合 AI 上下文、自主 Agent 循环、MCP 或原生 Anthropic/Gemini 协议。实际可用性取决于供应商和远端服务。TermGPT 不是 OpenAI 官方产品。
-
-浏览器标签页右键菜单提供“强制刷新”，从服务器重新加载页面并绕过缓存，地址栏隐藏时也可使用。
