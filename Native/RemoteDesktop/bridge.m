@@ -17,6 +17,7 @@
 #include <winpr/wlog.h>
 #include <winpr/ssl.h>
 #include <rfb/rfbclient.h>
+#include <openssl/ssl.h>
 
 static atomic_bool stopped = false;
 static pthread_mutex_t outputLock = PTHREAD_MUTEX_INITIALIZER;
@@ -243,7 +244,9 @@ static void runVNC(void) {
      }
     }
    }
-   int ready = WaitForMessage(client, 15000); if (ready < 0 || (ready && !HandleRFBServerMessage(client))) break;
+   // Read-ahead can hold the next clipboard/update message even when select reports no new socket bytes.
+   BOOL buffered = client->buffered || (client->tlsSession && SSL_pending((SSL*)client->tlsSession) > 0);
+   int ready = buffered ? 1 : WaitForMessage(client, 15000); if (ready < 0 || (ready && !HandleRFBServerMessage(client))) break;
   }
  }
  status(@"disconnected"); free(client->frameBuffer); client->frameBuffer = NULL; rfbClientCleanup(client);

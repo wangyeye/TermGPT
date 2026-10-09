@@ -181,3 +181,5 @@ RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和�
 无需外部桌面客户端或 Homebrew 运行库。客户端库、构建环境和许可证说明见 [Vendor/RemoteDesktop/README.md](Vendor/RemoteDesktop/README.md)。`scripts/build-remote-desktop.sh` 构建 ARM/Intel 桌面组件；`scripts/test-remote-desktop.py`、`scripts/test-rdp-desktop.py` 使用合成本机服务验证协议，不读取真实凭据。不包含音频、磁盘映射、网关、多显示器或文件剪贴板功能。
 
 独立桌面组件采用 GPL-3.0-or-later，主程序保持 MIT 许可证。发行版同时提供 `TermGPT-RemoteDesktop-source.tar.gz`，包含固定版本的完整上游源码及组件/构建源码；`python3 scripts/package-remote-source.py` 校验后重新生成该源码包。RDP 内使用 Windows 快捷键，Command 映射为 Control，便于复制/粘贴。
+
+仅修复桌面组件时，可运行 `./scripts/repack-desktop.sh arm64`（Intel 使用 `x86_64`），在已有 0.6.0 安装包中重新构建组件、签名并检查架构与隐私；脚本先检查环境和包版本，再替换 ZIP。完整发行构建仍使用 `scripts/build-release.sh`。

@@ -43,8 +43,10 @@ def server():
                     read_exact(connection,9)
                     # Solid red RGBA plus a text clipboard notification.
                     if not sent:
-                        connection.sendall(struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+bytes([255,0,0,0])*12)
-                        text=b'remote clipboard fixture'; connection.sendall(struct.pack('>BBBBI',3,0,0,0,len(text))+text); sent=True
+                        framebuffer=struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+bytes([255,0,0,0])*12
+                        text=b'remote clipboard fixture'
+                        # One TCP write forces read-ahead of the next message after the framebuffer.
+                        connection.sendall(framebuffer+struct.pack('>BBBBI',3,0,0,0,len(text))+text); sent=True
                 elif kind==4:
                     data=read_exact(connection,7); events.put(('key',data[0],struct.unpack('>I',data[3:])[0]))
                 elif kind==5:

@@ -30,6 +30,7 @@ add_subdirectory(${REMOTE_SOURCES}/freerdp freerdp-build EXCLUDE_FROM_ALL)
 add_subdirectory(${REMOTE_SOURCES}/libvnc libvnc-build EXCLUDE_FROM_ALL)
 add_executable(TermGPTRemoteDesktop bridge.m)
 target_include_directories(TermGPTRemoteDesktop PRIVATE
+ ${OPENSSL_ROOT_DIR}/include
  ${REMOTE_SOURCES}/freerdp/include ${CMAKE_CURRENT_BINARY_DIR}/freerdp-build/include
  ${REMOTE_SOURCES}/freerdp/winpr/include ${CMAKE_CURRENT_BINARY_DIR}/freerdp-build/winpr/include
  ${REMOTE_SOURCES}/libvnc/include ${CMAKE_CURRENT_BINARY_DIR}/libvnc-build/include)
