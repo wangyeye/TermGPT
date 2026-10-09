@@ -15,6 +15,12 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "网页": "Web",
+        "后退": "Back",
+        "前进": "Forward",
+        "网页进程已退出，请刷新重试": "The web process stopped. Reload to try again.",
+        "请输入有效的 HTTP 或 HTTPS URL，不能包含登录密码": "Enter a valid HTTP or HTTPS URL without embedded credentials.",
+        "网页在中间标签页打开，支持前进、后退和刷新。": "Websites open in the central tabs with back, forward and reload controls.",
         "打开连接日志": "Open Connection Logs",
         "等待确认证书": "Waiting for certificate approval",
         "无法验证服务器证书。请核对服务器身份，是否仅本次信任？": "The server certificate cannot be verified. Check the server identity before trusting it for this session.",

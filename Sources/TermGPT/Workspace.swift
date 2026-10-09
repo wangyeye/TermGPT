@@ -29,6 +29,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     let name: String
     let bookmark: Bookmark?
     var desktop: RemoteDesktop?
+    var web: WebSession?
     var isTerminal: Bool { bookmark?.kind == .ssh || bookmark == nil }
     let view = WorkTerminal(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
     @Published var status = "准备中"
@@ -39,13 +40,24 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     var started = false
     var targetLabel: String {
         guard let bookmark else { return "\(name) · \(L("本机"))" }
+        if bookmark.kind == .web { return "\(name) · \(bookmark.host)" }
         let endpoint = (bookmark.user.isEmpty ? "" : bookmark.user + "@") + bookmark.host + (bookmark.port == 22 ? "" : ":\(bookmark.port)")
         return "\(name) · \(endpoint)"
     }
     init(name: String, bookmark: Bookmark? = nil) { self.name = name; self.bookmark = bookmark; view.processDelegate = self; view.getTerminal().changeHistorySize(10000) }
     func start(_ preferences: Preferences) throws {
         guard !started else { return }
-        if let bookmark, bookmark.kind != .ssh {
+        if let bookmark, bookmark.kind == .web {
+            let browser = WebSession()
+            web = browser
+            browser.changed = { [weak self, weak browser] in
+                guard let self, let browser else { return }
+                self.running = browser.error.isEmpty
+                self.status = browser.error.isEmpty ? "网页" : browser.error
+            }
+            try browser.open(bookmark.host); started = true; running = true; status = "网页"; return
+        }
+        if let bookmark, bookmark.kind == .vnc || bookmark.kind == .rdp {
             let remote = RemoteDesktop(bookmark: bookmark)
             desktop = remote
             remote.changed = { [weak self, weak remote] in
@@ -88,7 +100,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) { cwd = directory ?? "" }
     func processTerminated(source: TerminalView, exitCode: Int32?) { view.zmodem.cancel(); running = false; status = "已退出：\(exitCode.map(String.init) ?? "未知")" }
-    func close() { desktop?.close(); view.zmodem.cancel(); if isTerminal && running { view.terminate() }; running = false }
+    func close() { web?.close(); desktop?.close(); view.zmodem.cancel(); if isTerminal && running { view.terminate() }; running = false }
 }
 struct TerminalHost: NSViewRepresentable {
     let session: TerminalSession
@@ -154,7 +166,7 @@ struct RunProposal: Identifiable {
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()
         if bookmark.kind == .ssh && bookmark.authentication == .key && bookmark.keyPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { throw AppError.message("请选择私钥文件") }
-        if bookmark.kind != .ssh || bookmark.authentication == .password {
+        if bookmark.kind == .vnc || bookmark.kind == .rdp || (bookmark.kind == .ssh && bookmark.authentication == .password) {
             if bookmark.kind == .ssh && password.isEmpty { throw AppError.message("请输入要保存的 SSH 密码") }
             try SSHPasswordStore.write(password, id: bookmark.id)
         } else { try SSHPasswordStore.remove(id: bookmark.id) }

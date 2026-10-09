@@ -40,3 +40,19 @@ final class BookmarkTests: XCTestCase {
         XCTAssertNil(try SSHPasswordStore.read(id: id, store: store))
     }
 }
+
+final class WebBookmarkTests: XCTestCase {
+    func testWebURLValidationAndPersistence() throws {
+        for address in ["https://example.com/path?q=1#section", "http://localhost:8080/"] {
+            let bookmark = Bookmark(name: "Website", host: address, folderID: UUID(), connectionKind: .web)
+            try bookmark.validate()
+            XCTAssertThrowsError(try bookmark.arguments())
+            let restored = try JSONDecoder().decode(Bookmark.self, from: JSONEncoder().encode(bookmark))
+            XCTAssertEqual(restored, bookmark)
+            XCTAssertEqual(try restored.webAddress().absoluteString, address)
+        }
+        for address in ["file:///etc/passwd", "javascript:alert(1)", "data:text/html,test", "https://" + "fixture:fixture" + "@" + "example.com", "https://", "example.com", "http://localhost:70000", "https://example.com/a b"] {
+            XCTAssertThrowsError(try Bookmark(host: address, connectionKind: .web).validate(), address)
+        }
+    }
+}

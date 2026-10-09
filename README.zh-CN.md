@@ -195,3 +195,9 @@ RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和�
 独立桌面组件采用 GPL-3.0-or-later，主程序保持 MIT 许可证。发行版同时提供 `TermGPT-RemoteDesktop-source.tar.gz`，包含固定版本的完整上游源码及组件/构建源码；`python3 scripts/package-remote-source.py` 校验后重新生成该源码包。RDP 内使用 Windows 快捷键，Command 映射为 Control，便于复制/粘贴。
 
 仅修复桌面组件时，可运行 `./scripts/repack-desktop.sh arm64`（Intel 使用 `x86_64`），在已有 0.6.0 安装包中重新构建组件、签名并检查架构与隐私；脚本先检查环境和包版本，再替换 ZIP。完整发行构建仍使用 `scripts/build-release.sh`。
+
+### WEB 书签
+
+新增连接书签时选择 **WEB**，输入名称和完整的 HTTP 或 HTTPS URL，选择文件夹后保存。点击书签，在中间标签页内浏览网页。编辑、删除、移动文件夹沿用现有菜单；标签页支持关闭和拖动排序。网页工具栏提供前进、后退、刷新和可编辑地址，各标签保留独立浏览历史。网页不作为终端上下文或 SFTP 目标。使用 macOS 自带 WebKit，无需额外安装运行环境；网站登录会话由 WebKit 保存在本机，证书采用系统默认验证。
+
+本地验证：先检查 `python3 --version`（需要 3.8 或更新），运行 `python3 scripts/webview-fixture.py`，使用打印的本地地址新增 WEB 书签，验证前进、后退、刷新、切换和关闭标签。Ctrl+C 停止测试服务。脚本仅在本机回环地址提供模拟页面，不读取个人文件。

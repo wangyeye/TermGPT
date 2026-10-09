@@ -5,9 +5,9 @@ enum SSHAuthentication: String, Codable, CaseIterable {
     case automatic = "SSH config / Agent", password = "密码", key = "私钥"
 }
 enum ConnectionKind: String, Codable, CaseIterable {
-    case ssh, vnc, rdp
-    var defaultPort: Int { switch self { case .ssh: return 22; case .vnc: return 5900; case .rdp: return 3389 } }
-    var icon: String { switch self { case .ssh: return "server.rack"; case .vnc: return "display"; case .rdp: return "desktopcomputer" } }
+    case ssh, vnc, rdp, web
+    var defaultPort: Int { switch self { case .ssh: return 22; case .vnc: return 5900; case .rdp: return 3389; case .web: return 443 } }
+    var icon: String { switch self { case .ssh: return "server.rack"; case .vnc: return "display"; case .rdp: return "desktopcomputer"; case .web: return "globe" } }
 }
 struct BookmarkFolder: Codable, Identifiable, Equatable {
     var id = UUID()
@@ -31,7 +31,12 @@ struct Bookmark: Codable, Identifiable, Equatable {
     static func cleanPastedAddress(_ value: String) -> String {
         String(value.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }).trimmingCharacters(in: .whitespacesAndNewlines)
     }
+    func webAddress() throws -> URL {
+        guard let url = URL(string: host), let parts = URLComponents(url: url, resolvingAgainstBaseURL: false), ["http", "https"].contains(parts.scheme?.lowercased() ?? ""), !(parts.host ?? "").isEmpty, parts.user == nil, parts.password == nil, !host.contains(where: { $0.isWhitespace }), !host.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }), parts.port == nil || (1...65535).contains(parts.port!) else { throw AppError.message("请输入有效的 HTTP 或 HTTPS URL，不能包含登录密码") }
+        return url
+    }
     func validate() throws {
+        if kind == .web { _ = try webAddress(); return }
         guard !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }), !host.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }), !user.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }), !user.hasPrefix("-"), (1...65535).contains(port) else { throw AppError.message("主机、用户名或端口无效") }
     }
     func arguments() throws -> [String] {

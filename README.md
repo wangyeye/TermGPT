@@ -191,3 +191,9 @@ No external viewer or Homebrew runtime is required. Build dependencies and licen
 The independent desktop helper is GPL-3.0-or-later because it combines Apache-2.0 and GPL-2.0-or-later engines. The main app retains its MIT license. Releases include `TermGPT-RemoteDesktop-source.tar.gz`, containing the exact upstream source archives and helper/build sources; `python3 scripts/package-remote-source.py` regenerates it after checksum verification. RDP uses remote Windows keyboard shortcuts; Command is mapped to Control for common copy/paste shortcuts.
 
 For a desktop-engine-only fix, `./scripts/repack-desktop.sh arm64` (or `x86_64`) rebuilds the helper inside an existing 0.6.0 archive, re-signs it, and repeats architecture/signature/privacy checks. It checks the build environment and package version before replacing the ZIP. Use `scripts/build-release.sh` for a full release build.
+
+### Web bookmarks
+
+Choose **WEB** when adding a connection bookmark, enter a name and a full HTTP or HTTPS URL, then select a folder and save. Click the bookmark to open the website inside a central tab. Edit, delete and move bookmarks using the existing menu. Each web tab keeps its own navigation history; the toolbar provides Back, Forward, Reload and an editable address. Tab closing and drag ordering work as for other connections. Web tabs do not provide terminal context or SFTP. macOS WebKit supplies the browser; no additional runtime is required. Website sessions are stored locally by WebKit. Certificate validation uses the system defaults.
+
+For a local browser smoke test, check `python3 --version` (3.8+), then run `python3 scripts/webview-fixture.py`. Add a WEB bookmark with the printed loopback URL. Test navigation, reload, tab switching and closing; stop the fixture with Ctrl+C. The script serves only synthetic pages on loopback and reads no personal files.

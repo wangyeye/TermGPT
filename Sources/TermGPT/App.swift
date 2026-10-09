@@ -174,7 +174,8 @@ struct MainView: View {
                 ZStack {
                     ForEach(workspace.sessions) { pane in
                         Group {
-                            if let desktop = pane.desktop { DesktopPane(desktop: desktop, active: workspace.active == pane.id) }
+                            if let web = pane.web { WebPane(browser: web) }
+                            else if let desktop = pane.desktop { DesktopPane(desktop: desktop, active: workspace.active == pane.id) }
                             else { TerminalHost(session: pane) }
                         }
                             .opacity(workspace.active == pane.id ? 1 : 0)
@@ -572,10 +573,12 @@ struct BookmarkView: View {
                         })) { ForEach(ConnectionKind.allCases, id: \.self) { Text($0.rawValue.uppercased()).tag($0) } }.pickerStyle(.segmented)
                     }
                     field(L("名称")) { TextField(L("例如：开发服务器"), text: $bookmark.name).focused($nameFocused) }
-                    field(bookmark.kind == .ssh ? L("主机 / SSH config 别名") : L("主机")) { TextField(L("主机名或 IP 地址"), text: $bookmark.host) }
+                    field(bookmark.kind == .web ? "URL" : (bookmark.kind == .ssh ? L("主机 / SSH config 别名") : L("主机"))) { TextField(bookmark.kind == .web ? "https://example.com" : L("主机名或 IP 地址"), text: $bookmark.host) }
+                    if bookmark.kind != .web {
                     HStack(alignment: .top, spacing: 16) {
                         field(L("端口")) { TextField("22", value: $bookmark.port, formatter: NumberFormatter()) }.frame(width: 100)
                         field(L("用户名"), help: bookmark.kind == .ssh ? L("留空使用 SSH config") : nil) { TextField(L("可选"), text: $bookmark.user) }
+                    }
                     }
                     field(L("文件夹")) {
                         Picker(L("文件夹"), selection: $bookmark.folderID) {
@@ -590,13 +593,13 @@ struct BookmarkView: View {
                         }.labelsHidden()
                     }
                     }
-                    if bookmark.kind != .ssh {
+                    if bookmark.kind == .vnc || bookmark.kind == .rdp {
                         field(L("密码"), help: L("保存到本机 JSON 配置，不使用钥匙串")) { SecureField(L("登录密码"), text: $password) }
                         if bookmark.kind == .rdp {
                             field(L("域（可选）")) { TextField("", text: Binding(get: { bookmark.domain ?? "" }, set: { bookmark.domain = $0 })) }
                         }
                         Toggle(L("同步文本剪贴板"), isOn: Binding(get: { bookmark.syncClipboard }, set: { bookmark.clipboardSync = $0 }))
-                    } else {
+                    } else if bookmark.kind == .ssh {
                     if bookmark.authentication == .password {
                         field(L("密码"), help: L("保存到本机 JSON 配置，不使用钥匙串")) { SecureField(L("SSH 登录密码"), text: $password) }
                     } else if bookmark.authentication == .key || (bookmark.authentication == nil && !bookmark.keyPath.isEmpty) {
@@ -612,7 +615,7 @@ struct BookmarkView: View {
                     }
                     }
                     field(L("备注")) { TextField(L("可选"), text: $bookmark.notes) }
-                    Text(L(bookmark.kind == .ssh ? "采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent 和 Known Hosts。保存的密码仅通过 SSH 认证组件使用；首次连接仍需确认主机指纹。" : "远程桌面在中间标签页打开。剪贴板仅同步当前桌面的文本。"))
+                    Text(L(bookmark.kind == .web ? "网页在中间标签页打开，支持前进、后退和刷新。" : bookmark.kind == .ssh ? "采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent 和 Known Hosts。保存的密码仅通过 SSH 认证组件使用；首次连接仍需确认主机指纹。" : "远程桌面在中间标签页打开。剪贴板仅同步当前桌面的文本。"))
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -633,7 +636,7 @@ struct BookmarkView: View {
             .onAppear { if let existing {
                     bookmark = existing
                     bookmark.authentication = existing.authentication ?? (existing.keyPath.isEmpty ? .automatic : .key)
-                    let load = Task.detached { try SSHPasswordStore.read(id: existing.id) }
+                    let load = Task.detached { existing.kind == .web ? nil : try SSHPasswordStore.read(id: existing.id) }
                     Task { do { let saved = try await load.value; if password.isEmpty { password = saved ?? "" } } catch { formError = error.localizedDescription } }
                 }; nameFocused = true }
     }
