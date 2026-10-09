@@ -150,6 +150,10 @@ struct MainView: View {
                     ForEach(workspace.sessions) { session in
                         TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
                             .contextMenu {
+                                if let browser = session.web {
+                                    Button(L("强制刷新")) { browser.view.reloadFromOrigin() }
+                                    Divider()
+                                }
                                 if let desktop = session.desktop {
                                     DesktopTabActions(desktop: desktop)
                                     Divider()

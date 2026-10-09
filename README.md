@@ -51,6 +51,8 @@ Streaming replies do not force-scroll: you can read older messages and copy comm
 
 ### Web bookmarks
 
+Right-click a browser tab and choose **Force Reload** to reload the page from the server, bypassing cached content.
+
 The address/navigation bar is **hidden by default**. Enable Show Web Address Bar in Settings for Back, Forward, Reload and the URL field; toggling does not reload the page.
 
 HTTP Basic/Digest challenges open a username/password dialog. Select **Save Password** to reuse credentials after restarting. Credentials are isolated by scheme, host, port, realm and authentication method. Standard username/password login forms ask whether to save the login when you submit. Choosing Save and Autofill fills that exact website origin on later visits without submitting the form. Dynamic forms are supported; third-party frames, passkeys, multi-step or nonstandard controls may need manual input. JavaScript password prompts (including noVNC) support optional saved, prefilled passwords.

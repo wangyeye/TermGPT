@@ -239,6 +239,7 @@ final class Localization: ObservableObject {
         "采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent 和 Known Hosts。保存的密码仅通过 SSH 认证组件使用；首次连接仍需确认主机指纹。": "Uses system OpenSSH with ~/.ssh/config, SSH Agent and Known Hosts. Saved passwords are read only by the SSH authentication helper; first connections still require host verification.",
         "搜索文本": "Search Text",
         "刷新": "Refresh",
+        "强制刷新": "Force Reload",
         "关闭": "Close",
         "Enter 发送 · ⌥Enter 换行": "Enter to send · ⌥Enter for a new line",
         "聊天输入，Enter 发送，Option Enter 换行": "Chat input. Enter to send, Option Enter for a new line",
