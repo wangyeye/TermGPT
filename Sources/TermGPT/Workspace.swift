@@ -121,6 +121,8 @@ struct RunProposal: Identifiable {
     @Published var contextMode = ContextMode.auto
     @Published var bookmarks: [Bookmark] = []
     @Published var folders: [BookmarkFolder] = []
+    var draggingBookmark: UUID?
+    var draggingFolder: UUID?
     @Published var editingBookmark: Bookmark?
     @Published var foldersShown = false
     @Published var chats = [Chat()]
@@ -185,7 +187,23 @@ struct RunProposal: Identifiable {
     }
     func moveBookmark(_ id: UUID, folder: UUID?) {
         guard let index = bookmarks.firstIndex(where: { $0.id == id }) else { return }
-        bookmarks[index].folderID = folder; persist()
+        var bookmark = bookmarks.remove(at: index)
+        bookmark.folderID = folder; bookmarks.append(bookmark); persist()
+    }
+    func reorderBookmark(_ id: UUID, to target: UUID) {
+        bookmarks = BookmarkOrder.moving(id, to: target, in: bookmarks); persist()
+    }
+    func reorderFolder(_ id: UUID, to target: UUID) {
+        folders = BookmarkOrder.movingFolder(id, to: target, in: folders); persist()
+    }
+    func bookmarkNeighbor(_ bookmark: Bookmark, offset: Int) -> UUID? {
+        let siblings = bookmarks.filter { $0.folderID == bookmark.folderID }
+        guard let index = siblings.firstIndex(where: { $0.id == bookmark.id }), siblings.indices.contains(index + offset) else { return nil }
+        return siblings[index + offset].id
+    }
+    func folderNeighbor(_ id: UUID, offset: Int) -> UUID? {
+        guard let index = folders.firstIndex(where: { $0.id == id }), folders.indices.contains(index + offset) else { return nil }
+        return folders[index + offset].id
     }
     func open(name: String, bookmark: Bookmark? = nil) {
         let session = TerminalSession(name: name, bookmark: bookmark)

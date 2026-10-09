@@ -15,6 +15,8 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "下移": "Move Down",
+        "上移": "Move Up",
         "显示网页地址栏": "Show web address bar",
         "默认隐藏网页导航栏，关闭后仅显示网页主体。保存后立即生效。": "The web navigation bar is hidden by default. Turn it off to show only the webpage. Changes apply after saving.",
         "网页": "Web",

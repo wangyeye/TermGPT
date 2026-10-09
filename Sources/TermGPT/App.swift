@@ -465,6 +465,8 @@ struct BookmarkRow: View {
             Menu { actions } label: { Image(systemName: "ellipsis") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22).padding(7).accessibilityLabel(L("书签菜单：%@", bookmark.name))
         }.contextMenu { actions }
+            .onDrag { workspace.draggingBookmark = bookmark.id; workspace.draggingFolder = nil; return BookmarkDrag.provider(bookmark.id, type: BookmarkDrag.bookmarkType) }
+            .onDrop(of: [BookmarkDrag.bookmarkType], delegate: BookmarkRowDrop(target: bookmark.id, workspace: workspace))
     }
     @ViewBuilder private var actions: some View {
         Button(L("连接")) { workspace.open(name: bookmark.name, bookmark: bookmark) }
@@ -473,6 +475,8 @@ struct BookmarkRow: View {
             Button(L("未分类")) { workspace.moveBookmark(bookmark.id, folder: nil) }
             ForEach(workspace.folders) { folder in Button(folder.name) { workspace.moveBookmark(bookmark.id, folder: folder.id) } }
         }
+        Button(L("上移")) { if let target = workspace.bookmarkNeighbor(bookmark, offset: -1) { workspace.reorderBookmark(bookmark.id, to: target) } }.disabled(workspace.bookmarkNeighbor(bookmark, offset: -1) == nil)
+        Button(L("下移")) { if let target = workspace.bookmarkNeighbor(bookmark, offset: 1) { workspace.reorderBookmark(bookmark.id, to: target) } }.disabled(workspace.bookmarkNeighbor(bookmark, offset: 1) == nil)
         Button(L("删除书签"), role: .destructive) { workspace.deleteBookmark(bookmark.id) }
     }
 }
@@ -491,7 +495,13 @@ struct BookmarkFolderSection: View {
                 }.contentShape(Rectangle()).padding(.vertical, 8)
             }.buttonStyle(.plain)
                 .accessibilityValue(expanded ? L("已展开") : L("已折叠"))
-                .contextMenu { Button(L("管理文件夹")) { workspace.foldersShown = true } }
+                .onDrag { workspace.draggingFolder = folder.id; workspace.draggingBookmark = nil; return BookmarkDrag.provider(folder.id, type: BookmarkDrag.folderType) }
+                .onDrop(of: [BookmarkDrag.folderType, BookmarkDrag.bookmarkType], delegate: BookmarkFolderDrop(target: folder.id, workspace: workspace))
+                .contextMenu {
+                    Button(L("管理文件夹")) { workspace.foldersShown = true }
+                    Button(L("上移")) { if let target = workspace.folderNeighbor(folder.id, offset: -1) { workspace.reorderFolder(folder.id, to: target) } }.disabled(workspace.folderNeighbor(folder.id, offset: -1) == nil)
+                    Button(L("下移")) { if let target = workspace.folderNeighbor(folder.id, offset: 1) { workspace.reorderFolder(folder.id, to: target) } }.disabled(workspace.folderNeighbor(folder.id, offset: 1) == nil)
+                }
             if expanded {
                 ForEach(workspace.bookmarks.filter { $0.folderID == folder.id }) {
                     BookmarkRow(workspace: workspace, bookmark: $0).padding(.leading, 36)

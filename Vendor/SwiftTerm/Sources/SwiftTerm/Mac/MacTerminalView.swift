@@ -182,6 +182,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     var becomeMainObserver, resignMainObserver: NSObjectProtocol?
     
     deinit {
+        selectionScrollTimer?.invalidate()
         if let becomeMainObserver {
             NotificationCenter.default.removeObserver (becomeMainObserver)
         }
@@ -927,26 +928,70 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
     
     private var autoScrollDelta = 0
-    // Callback from when the mouseDown autoscrolling timer goes off
-    private func scrollingTimerElapsed (source: Timer)
-    {
-        if autoScrollDelta == 0 {
-            return
+    private var selectionScrollTimer: Timer?
+    private var selectionDragPoint: NSPoint?
+    private var mouseSelectionAnchor: Position?
+
+    private func stopSelectionScrolling() {
+        selectionScrollTimer?.invalidate()
+        selectionScrollTimer = nil
+        autoScrollDelta = 0
+        selectionDragPoint = nil
+    }
+
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { stopSelectionScrolling() }
+    }
+
+    // Continue extending the selection while the pointer stays near either viewport edge.
+    private func scrollingTimerElapsed(source: Timer) {
+        guard selection.active, didSelectionDrag, !terminal.isDisplayBufferAlternate,
+              !allowMouseReporting || terminal.mouseMode == .off,
+              let point = selectionDragPoint, autoScrollDelta != 0 else {
+            stopSelectionScrolling(); return
         }
-        if autoScrollDelta < 0 {
-            scrollUp(lines: autoScrollDelta * -1)
-        } else {
-            scrollUp(lines: autoScrollDelta)
+        let previous = terminal.displayBuffer.yDisp
+        if autoScrollDelta < 0 { scrollUp(lines: -autoScrollDelta) }
+        else { scrollDown(lines: autoScrollDelta) }
+        if previous == terminal.displayBuffer.yDisp { stopSelectionScrolling(); return }
+        let edgePoint = NSPoint(x: min(max(point.x, bounds.minX), bounds.maxX - 1),
+                                y: min(max(point.y, bounds.minY + 1), bounds.maxY - 1))
+        selection.dragExtend(bufferPosition: calculateMouseHit(at: edgePoint).grid)
+        setNeedsDisplay(bounds)
+    }
+
+    private func updateSelectionScrolling(at point: NSPoint) {
+        guard selection.active, !terminal.isDisplayBufferAlternate, canScroll else {
+            stopSelectionScrolling(); return
+        }
+        let edge = max(12, cellDimension.height)
+        let rowHeight = max(1, cellDimension.height)
+        if point.y <= bounds.minY + edge {
+            autoScrollDelta = calcScrollingVelocity(delta: Int((bounds.minY + edge - point.y) / rowHeight))
+        } else if point.y >= bounds.maxY - edge {
+            autoScrollDelta = -calcScrollingVelocity(delta: Int((point.y - bounds.maxY + edge) / rowHeight))
+        } else { stopSelectionScrolling(); return }
+        selectionDragPoint = point
+        if selectionScrollTimer == nil {
+            let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] timer in
+                self?.scrollingTimerElapsed(source: timer)
+            }
+            selectionScrollTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
         }
     }
-    
+
     public override func mouseDown(with event: NSEvent) {
+        stopSelectionScrolling()
+        didSelectionDrag = false
         if allowMouseReporting && terminal.mouseMode.sendButtonPress() {
             sharedMouseEvent(with: event)
             return
         }
         
         let hit = calculateMouseHit(with: event).grid
+        mouseSelectionAnchor = hit
         
         switch event.clickCount {
         case 1:
@@ -980,6 +1025,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     var didSelectionDrag: Bool = false
     
     public override func mouseUp(with event: NSEvent) {
+        stopSelectionScrolling()
         if event.modifierFlags.contains(.command){
             if let payload = getPayload(for: event) as? String {
                 if let (url, params) = urlAndParamsFrom(payload: payload) {
@@ -1020,19 +1066,12 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         if selection.active {
             selection.dragExtend(bufferPosition: Position(col: hit.col, row: hit.row))
         } else {
-            selection.setSoftStart(bufferPosition: Position(col: hit.col, row: hit.row))
+            selection.setSoftStart(bufferPosition: mouseSelectionAnchor ?? hit)
             selection.startSelection()
+            selection.dragExtend(bufferPosition: hit)
         }
         didSelectionDrag = true
-        autoScrollDelta = 0
-        let screenRow = hit.row - displayBuffer.yDisp
-        if selection.active {
-            if screenRow <= 0 {
-                autoScrollDelta = calcScrollingVelocity(delta: screenRow * -1) * -1
-            } else if screenRow >= displayBuffer.rows {
-                autoScrollDelta = calcScrollingVelocity(delta: screenRow - displayBuffer.rows)
-            }
-        }
+        updateSelectionScrolling(at: convert(event.locationInWindow, from: nil))
         setNeedsDisplay(bounds)
     }
     

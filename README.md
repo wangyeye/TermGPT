@@ -205,3 +205,11 @@ The web navigation/address bar is hidden by default, including when upgrading an
 Interactive local shells and SSH sessions use a UTF-8 character locale, including password-authenticated SSH. TermGPT preserves existing UTF-8 locale choices and supplies `en_US.UTF-8` when the GUI environment is missing a Unicode locale. Authentication messages may use `LC_MESSAGES=C`; interactive sessions never force a byte-oriented `LC_ALL=C`. Reconnect existing SSH tabs after upgrading. The remote SSH service must accept a UTF-8 locale or configure one on the host; shell startup files can still override it. The SFTP and transfer-helper protocol locales are separate from interactive terminals.
 
 Reproduce the encoding issue locally with `python3 scripts/test-unicode-pty.py` (macOS, Python 3.8+ and `/bin/zsh` required). The script checks its environment, starts isolated zsh PTYs with a temporary home, compares C and UTF-8 locales, verifies the displayed Chinese line and shell payload, and removes its temporary data. It does not access SSH hosts or personal shell profiles.
+
+### Selecting terminal history
+
+While selecting terminal text, keep the pointer near the lower or upper edge to continue scrolling through history and extending the selection. Release the mouse or move away from the edge to stop. Terminal applications that capture mouse input retain their normal mouse reporting behavior. The vendored macOS selection fix and lifecycle are documented in `Vendor/SwiftTerm/TERMGPT-PATCHES.md` and verified by native view regression tests.
+
+### Bookmark ordering
+
+Drag a bookmark onto another bookmark to reorder it. Drag it onto a folder header to move it into that folder; dropping onto a bookmark in another folder moves it there as well. Folder headers can also be dragged to reorder folders. The bookmark menu and folder context menu provide **Move Up / Move Down** for precise adjustment. Order is saved in the existing local JSON configuration and retained after restart. SSH, VNC, RDP and WEB share the same behavior.
