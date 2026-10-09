@@ -292,7 +292,7 @@ struct RunProposal: Identifiable {
         }
     }
     func restore(_ session: TerminalSession) {
-        do { try session.start(preferences); session.awaitingRestore = false; if let bookmark = session.bookmark { recordRecent(bookmark.id) } }
+        do { try session.start(preferences); session.awaitingRestore = false; objectWillChange.send(); if let bookmark = session.bookmark { recordRecent(bookmark.id) } }
         catch { self.error = error.localizedDescription }
     }
     func newLocal() { open(name: sessions.contains { $0.bookmark == nil } ? "Local \(sessions.count + 1)" : "Local") }
