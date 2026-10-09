@@ -51,6 +51,8 @@ Streaming replies do not force-scroll: you can read older messages and copy comm
 
 ### Web bookmarks
 
+Right-click a WEB tab → **Close Other Tabs** to keep that tab and close all other central tabs, including terminal and remote-desktop connections.
+
 Right-click a browser tab and choose **Force Reload** to reload the page from the server, bypassing cached content.
 
 The address/navigation bar is **hidden by default**. Enable Show Web Address Bar in Settings for Back, Forward, Reload and the URL field; toggling does not reload the page.

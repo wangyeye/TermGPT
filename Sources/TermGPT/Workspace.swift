@@ -239,6 +239,11 @@ struct RunProposal: Identifiable {
     func closeAllTerminals() {
         for id in sessions.map(\.id) { close(id) }
     }
+    func closeOthers(keeping id: UUID) {
+        guard sessions.contains(where: { $0.id == id }) else { return }
+        active = id
+        for target in sessions.map(\.id) where target != id { close(target) }
+    }
     func closeRight(of id: UUID) {
         for target in TerminalTabOrder.right(of: id, in: sessions.map(\.id)) { close(target) }
     }

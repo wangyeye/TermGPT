@@ -163,6 +163,10 @@ struct MainView: View {
                                     Divider()
                                 }
                                 Button(L("关闭当前终端")) { workspace.close(session.id) }
+                                if session.web != nil {
+                                    Button(L("关闭其他标签")) { workspace.closeOthers(keeping: session.id) }
+                                        .disabled(workspace.sessions.count <= 1)
+                                }
                                 Button(L("关闭右侧标签页")) { workspace.closeRight(of: session.id) }
                                     .disabled(workspace.sessions.last?.id == session.id)
                                 Button(L("关闭全部标签页")) { workspace.closeAllTerminals() }

@@ -70,6 +70,7 @@ final class Localization: ObservableObject {
         "ChatGPT 使用额度已用尽，预计恢复时间：%@。请等待恢复，或在设置中切换模型或其他 AI 服务。": "Your ChatGPT usage limit has been reached. Expected reset: %@. Wait for it to reset, or switch models or AI providers in Settings.",
         "关闭右侧标签页": "Close Tabs to the Right",
         "关闭全部标签页": "Close All Tabs",
+        "关闭其他标签": "Close Other Tabs",
         "已展开": "Expanded",
         "已折叠": "Collapsed",
         "本机": "Local",
