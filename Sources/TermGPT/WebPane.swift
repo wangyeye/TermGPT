@@ -151,6 +151,19 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url { try? open(url.absoluteString) }
         return nil
     }
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
+                 defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+        guard !closed else { completionHandler(nil); return }
+        let alert = NSAlert()
+        alert.messageText = frame.request.url?.host ?? L("网页身份验证")
+        alert.informativeText = prompt
+        alert.addButton(withTitle: L("好")); alert.addButton(withTitle: L("取消"))
+        let isPassword = prompt.range(of: "password|passphrase|密码|口令", options: [.regularExpression, .caseInsensitive]) != nil
+        let input: NSTextField = isPassword ? NSSecureTextField(string: defaultText ?? "") : NSTextField(string: defaultText ?? "")
+        input.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = input; alert.window.initialFirstResponder = input
+        completionHandler(alert.runModal() == .alertFirstButtonReturn && !closed ? input.stringValue : nil)
+    }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { error = ""; update() }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { update() }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError failure: Error) { failed(failure) }
