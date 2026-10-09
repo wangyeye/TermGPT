@@ -263,11 +263,13 @@ static rfbCredential *vncCredential(rfbClient *client, int type) {
  rfbCredential *credential = calloc(1, sizeof(rfbCredential));
  credential->userCredential.username = strdup([configuration[@"user"] UTF8String] ?: ""); credential->userCredential.password = vncPassword(client); return credential;
 }
+static BOOL checkedInitialVNCFrame = NO;
 static rfbBool vncAllocate(rfbClient *client) {
  if (client->width <= 0 || client->height <= 0 || client->width > 4096 || client->height > 2160) return FALSE;
+ checkedInitialVNCFrame = NO;
+ packet(6, [[NSString stringWithFormat:@"VNC framebuffer size %dx%d", client->width, client->height] dataUsingEncoding:NSUTF8StringEncoding]);
  free(client->frameBuffer); client->frameBuffer = calloc((size_t)client->width * client->height, 4); return client->frameBuffer != NULL;
 }
-static BOOL checkedInitialVNCFrame = NO;
 static void vncFrame(rfbClient *client) {
  frame(client->frameBuffer, client->width, client->height, client->width * 4);
  if (!checkedInitialVNCFrame && client->frameBuffer) {

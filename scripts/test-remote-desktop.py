@@ -9,6 +9,7 @@ if not helper.is_file(): raise SystemExit('Build scripts/build-remote-desktop.sh
 password_mode = '--password' in sys.argv
 black_mode = '--initial-black' in sys.argv
 resize_mode = '--resize' in sys.argv
+resize_black = '--resize-black' in sys.argv
 password = 'fixture8' if password_mode else ''
 listener = socket.socket(); listener.bind(('127.0.0.1',0)); listener.listen(1); listener.settimeout(20)
 events = queue.Queue(); errors = queue.Queue(); packets = queue.Queue()
@@ -35,7 +36,7 @@ def server():
             connection.sendall(b'\0'*4); read_exact(connection,1)
             name=b'TermGPT synthetic desktop'
             connection.sendall(struct.pack('>HHBBBBHHHBBB3xI',4,3,32,24,0,1,255,255,255,0,8,16,len(name))+name)
-            sent=False; woke=False
+            sent=False; woke=False; dimensions=(4,3)
             while True:
                 kind=read_exact(connection,1)[0]
                 if kind==0: read_exact(connection,19)
@@ -56,10 +57,11 @@ def server():
                     data=read_exact(connection,7); events.put(('key',data[0],struct.unpack('>I',data[3:])[0]))
                 elif kind==5:
                     data=read_exact(connection,5); events.put(('mouse',data[0],*struct.unpack('>HH',data[1:])))
-                    if black_mode and not woke:
+                    if (black_mode or resize_black) and not woke:
                         assert data[0] == 0, 'Initial display wake must not press a mouse button'
                         woke=True
-                        connection.sendall(struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+bytes([255,0,0,0])*12)
+                        width,height=dimensions
+                        connection.sendall(struct.pack('>BBHHHHHi',0,0,1,0,0,width,height,0)+bytes([255,0,0,0])*width*height)
                 elif kind==6:
                     data=read_exact(connection,7); length=struct.unpack('>I',data[3:])[0]
                     # No extended clipboard was advertised, so this remains Latin-1.
@@ -70,7 +72,8 @@ def server():
                     screen=read_exact(connection,16); identifier,x,y,w,h,flags=struct.unpack('>IHHHHI',screen)
                     assert identifier==0 and (w,h)==(width,height) and (x,y)==(0,0)
                     events.put(('resize',width,height))
-                    connection.sendall(struct.pack('>BBHHHHHi',0,0,1,1,0,width,height,-308)+struct.pack('>B3xIHHHHI',1,0,0,0,width,height,0)+struct.pack('>BBHHHHHi',0,0,1,0,0,width,height,0)+bytes([255,0,0,0])*width*height)
+                    dimensions=(width,height);woke=False
+                    connection.sendall(struct.pack('>BBHHHHHi',0,0,1,1,0,width,height,-308)+struct.pack('>B3xIHHHHI',1,0,0,0,width,height,0)+struct.pack('>BBHHHHHi',0,0,1,0,0,width,height,0)+(bytes([0,0,0,0]) if resize_black else bytes([255,0,0,0]))*width*height)
                 else: raise AssertionError('Unexpected RFB message')
     except EOFError: pass
     except Exception as error: errors.put(error)
@@ -110,7 +113,8 @@ try:
             while True:
                 kind,payload=packets.get(timeout=15)
                 if kind==1 and struct.unpack('>II',payload[:8])==size:
-                    assert len(payload)==8+size[0]*size[1]*4;break
+                    assert len(payload)==8+size[0]*size[1]*4
+                    if payload[8:12]==bytes([255,0,0,0]):break
                 if time.monotonic()>deadline:raise AssertionError('Resize did not produce matching framebuffer')
     send(dict(type='key',scan=0x1e,keysym=0x61,down=True))
     send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1))
