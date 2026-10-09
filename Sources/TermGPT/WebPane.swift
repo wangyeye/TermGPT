@@ -226,7 +226,7 @@ struct WebPane: View {
             Divider()
             }
             if !browser.error.isEmpty { Text(browser.error).foregroundStyle(.red).font(.caption).padding(8).textSelection(.enabled) }
-            WebHost(browser: browser)
+            WebHost(browser: browser).frame(maxWidth: .infinity, maxHeight: .infinity)
         }.onAppear { input = browser.address }.onChange(of: browser.address) { input = $0 }
     }
 }
