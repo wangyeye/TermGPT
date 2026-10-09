@@ -57,6 +57,10 @@ The same page also includes a username/password form and a noVNC-style prompt. U
 
 ## Script reference
 
+### RDP connection probe
+
+Requires Python 3.8+ and network access to the requested host. Run `python3 scripts/probe-rdp.py HOST --port 3389` to check TCP and the initial RDP security negotiation. No credentials are sent. To compare the installed native engine, add `--helper /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop`; it uses empty credentials, stops at certificate verification without accepting it, and never opens a desktop. Diagnostic output can contain the requested host and public certificate details; keep it local. A successful probe does not verify account authentication. If the probe works but the app immediately fails, check macOS Privacy & Security → Local Network permission for TermGPT and retry the app connection.
+
 | Script in `scripts/` | Purpose and usage |
 | --- | --- |
 | `check-environment.sh` | Check macOS, toolchain, SSH/zsh and vendored terminal dependency |
@@ -71,6 +75,7 @@ The same page also includes a username/password form and a noVNC-style prompt. U
 | `test-isolated.sh` | Snapshot source outside synced folders before running tests |
 | `mock-provider.py` | Fixed SSE provider fixture; stop with Ctrl+C |
 | `webview-fixture.py` | Browser/Basic Auth fixture and exact synthetic credential cleanup |
+| `probe-rdp.py` | TCP/RDP negotiation and optional native-engine probe without credentials; see above |
 | `test-unicode-pty.py` | Compare C/UTF-8 zsh PTY display and payload in a temporary HOME |
 | `build-zmodem.sh` | Build rz/sz helpers for `arm64` or `x86_64` |
 | `test-zmodem.py` | Test binary, Unicode, empty and multi-file transfers with synthetic files; pass helper directory |

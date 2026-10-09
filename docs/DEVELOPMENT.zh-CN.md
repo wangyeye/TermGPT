@@ -57,6 +57,10 @@ python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application
 
 ## 脚本索引
 
+### RDP 连接检查
+
+需要 Python 3.8+ 和目标主机的网络访问权限。运行 `python3 scripts/probe-rdp.py 主机 --port 3389` 检查 TCP 和 RDP 安全协商，不发送账号密码。添加 `--helper /Applications/TermGPT.app/Contents/MacOS/TermGPTRemoteDesktop` 可检查已安装的原生组件；使用空凭据，到达证书验证即停止，不接受证书、不打开桌面。输出可能包含目标地址和公开证书信息，仅在本机查看。检查通过不代表账号认证成功。若脚本成功但应用立即失败，请检查 macOS「隐私与安全性 → 本地网络」中的 TermGPT 权限，再重试应用连接。
+
 | `scripts/` 下脚本 | 作用与用法 |
 | --- | --- |
 | `check-environment.sh` | 检查 macOS、工具链、SSH/zsh 和终端依赖 |
@@ -71,6 +75,7 @@ python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application
 | `test-isolated.sh` | 从同步目录复制源码快照后测试 |
 | `mock-provider.py` | 固定 SSE 模拟服务，Ctrl+C 停止 |
 | `webview-fixture.py` | 网页/Basic Auth 模拟服务及精确测试凭据清理 |
+| `probe-rdp.py` | 无凭据 TCP/RDP 协商检查，可选原生组件检查，见上文 |
 | `test-unicode-pty.py` | 临时 HOME 中对照 C/UTF-8 zsh 显示和接收内容 |
 | `build-zmodem.sh` | 构建 rz/sz，传入 arm64 或 x86_64 |
 | `test-zmodem.py` | 使用模拟文件测试二进制、中文、空文件和多文件；传入组件目录 |
