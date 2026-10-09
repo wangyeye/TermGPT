@@ -627,7 +627,10 @@ struct BookmarkView: View {
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 8)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                    // AppKit focus rings extend beyond the text field's layout bounds.
+                    // Keep that space inside the scroll viewport so no edge is clipped.
+                    .padding(.horizontal, 6).padding(.vertical, 4).padding(.trailing, 8)
             }
             if !formError.isEmpty { Text(L(formError)).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
             Divider()
