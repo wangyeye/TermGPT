@@ -177,7 +177,9 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
         if canRemember { fields.addArrangedSubview(remember) }
         fields.frame = NSRect(x: 0, y: 0, width: 300, height: canRemember ? 58 : 24)
         alert.accessoryView = fields; alert.window.initialFirstResponder = input
-        if alert.runModal() == .alertFirstButtonReturn && !closed {
+        guard let window = webView.window else { completionHandler(nil); return }
+        alert.beginSheetModal(for: window) { [self] result in
+        if result == .alertFirstButtonReturn && !closed {
             if canRemember {
                 do { try CredentialStore.shared.update {
                     if remember.state == .on { $0.webPasswords[key] = WebCredential(username: "", password: input.stringValue) }
@@ -186,6 +188,7 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
             }
             completionHandler(input.stringValue)
         } else { completionHandler(nil) }
+        }
     }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { error = ""; update() }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { update() }

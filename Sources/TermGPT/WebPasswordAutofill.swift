@@ -76,15 +76,21 @@ final class WebPasswordAutofill: NSObject, WKScriptMessageHandlerWithReply {
             if asking || (saved?.username == username && saved?.password == password) { replyHandler(nil, nil); return }
             if offered[key]?.username == username && offered[key]?.password == password { replyHandler(nil, nil); return }
             offered[key] = WebCredential(username: username, password: password)
-            asking = true; defer { asking = false }
+            guard let window = browser.view.window else { replyHandler(nil, "Unavailable"); return }
+            asking = true
             let alert = NSAlert()
             alert.messageText = L("保存网页登录信息？")
             alert.informativeText = L("是否保存此网站的用户名和密码，下次访问时自动填充？") + "\n\n" + origin
             alert.addButton(withTitle: L("保存并自动填充")); alert.addButton(withTitle: L("不保存"))
-            if alert.runModal() == .alertFirstButtonReturn {
-                try CredentialStore.shared.update { $0.webPasswords[key] = WebCredential(username: username, password: password) }
+            alert.beginSheetModal(for: window) { [self] result in
+                defer { asking = false }
+                do {
+                    if result == .alertFirstButtonReturn {
+                        try CredentialStore.shared.update { $0.webPasswords[key] = WebCredential(username: username, password: password) }
+                    }
+                    replyHandler(nil, nil)
+                } catch { replyHandler(nil, "Local credential storage unavailable") }
             }
-            replyHandler(nil, nil)
         } catch { replyHandler(nil, "Local credential storage unavailable") }
     }
 }
