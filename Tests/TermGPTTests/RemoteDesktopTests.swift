@@ -77,6 +77,7 @@ final class RemoteDesktopTests: XCTestCase {
         canvas.firstFrameDrawn = { drawnWithoutInput = true }
         canvas.image = image
         XCTAssertTrue(drawnWithoutInput)
+        XCTAssertEqual((canvas.layer?.contents as? CGImage)?.width, 1)
         window.orderOut(nil)
         XCTAssertNil(DesktopFrame.decode(Data(frame.dropLast())))
         XCTAssertNil(DesktopFrame.decode(Data([0,0,32,0,0,0,0,1])))

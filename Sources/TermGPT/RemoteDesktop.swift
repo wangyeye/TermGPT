@@ -236,8 +236,19 @@ struct DesktopPane: View {
 /// Scales a framebuffer with correct pointer mapping; hardware keys preserve remote shortcuts.
 final class DesktopCanvas: NSView {
     var kind: ConnectionKind = .rdp
-    var image: CGImage? { didSet { needsDisplay = true; if window != nil { displayIfNeeded() } } }
-    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); needsDisplay = true }
+    var image: CGImage? { didSet { presentFrame() } }
+    override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true; presentFrame() }
+    required init?(coder: NSCoder) { super.init(coder: coder); wantsLayer = true; presentFrame() }
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() { presentFrame() }
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); presentFrame() }
+    private func presentFrame() {
+        // Set the backing layer directly: a SwiftUI-hosted NSView may defer draw(_:) until input.
+        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.contentsGravity = .resizeAspect
+        layer?.contents = image
+        if image != nil, window != nil { firstFrameDrawn?(); firstFrameDrawn = nil }
+    }
     var send: (([String: Any]) -> Void)?
     var firstFrameDrawn: (() -> Void)?
     private var buttons = 0
@@ -254,12 +265,6 @@ final class DesktopCanvas: NSView {
         let scale = min(bounds.width / CGFloat(image.width), bounds.height / CGFloat(image.height))
         let size = NSSize(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale)
         return NSRect(x: (bounds.width-size.width)/2, y: (bounds.height-size.height)/2, width: size.width, height: size.height)
-    }
-    override func draw(_ dirtyRect: NSRect) {
-        NSColor.black.setFill(); bounds.fill()
-        if let image { NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)).draw(in: imageRect, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
-            if !imageRect.isEmpty { firstFrameDrawn?(); firstFrameDrawn = nil }
-        }
     }
     private func mouse(_ event: NSEvent, flags: Int) {
         guard let image, !imageRect.isEmpty else { return }
