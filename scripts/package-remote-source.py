@@ -9,7 +9,10 @@ paths=[Path('LICENSE'),Path('Native/RemoteDesktop'),Path('Vendor/RemoteDesktop')
 manifest=json.loads((root/'Vendor/RemoteDesktop/dependencies.json').read_text())
 output=root/'dist/TermGPT-RemoteDesktop-source.tar.gz';output.parent.mkdir(exist_ok=True)
 with tarfile.open(output,'w:gz') as bundle:
-    def clean(info):info.uid=info.gid=0;info.uname=info.gname='';info.mtime=0;return info
+    def clean(info):
+        if '__pycache__' in Path(info.name).parts or info.name.endswith(('.pyc', '.pyo')):
+            return None
+        info.uid=info.gid=0;info.uname=info.gname='';info.mtime=0;return info
     for relative in paths:bundle.add(root/relative,arcname=str(Path('TermGPT-RemoteDesktop-source')/relative),filter=clean)
     for item in manifest:
         archive=root/'.build/remote-sources'/(item['name']+'.tar.gz')
