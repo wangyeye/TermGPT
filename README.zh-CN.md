@@ -186,6 +186,8 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 
 RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和指纹，可选择“仅本次信任”“始终信任”或“取消”。始终信任将 SHA-256 指纹保存到本机限制权限的 `credentials.json`，绑定当前书签的主机与端口；完全匹配时自动通过，证书变化时重新询问。删除书签也会删除对应的信任记录。传统 VNC 密码认证不加密桌面流量，请在可信网络或安全隧道中使用。密码保存到本机限制权限的 JSON 凭据文件，不使用钥匙串。SFTP 和 AI 命令执行仅适用于终端标签页，不会发送到桌面。
 
+本地安装已构建的版本：先退出 TermGPT，再运行 `./scripts/install-local-release.sh /安装包绝对路径/TermGPT-macOS-arm64.zip`（Intel Mac 使用 Intel 安装包）。脚本仅适用于 macOS，先检查环境、架构和签名，再原子替换 `/Applications` 中的应用；需要该目录写入权限，保留用户配置。
+
 无需外部桌面客户端或 Homebrew 运行库。客户端库、构建环境和许可证说明见 [Vendor/RemoteDesktop/README.md](Vendor/RemoteDesktop/README.md)。`scripts/build-remote-desktop.sh` 构建 ARM/Intel 桌面组件；`scripts/test-remote-desktop.py`、`scripts/test-rdp-desktop.py` 使用合成本机服务验证协议，不读取真实凭据。不包含音频、磁盘映射、网关、多显示器或文件剪贴板功能。
 
 独立桌面组件采用 GPL-3.0-or-later，主程序保持 MIT 许可证。发行版同时提供 `TermGPT-RemoteDesktop-source.tar.gz`，包含固定版本的完整上游源码及组件/构建源码；`python3 scripts/package-remote-source.py` 校验后重新生成该源码包。RDP 内使用 Windows 快捷键，Command 映射为 Control，便于复制/粘贴。
