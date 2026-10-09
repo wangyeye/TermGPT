@@ -87,7 +87,7 @@ int main(int argc,char **argv){
   if(peer->activated)handles[count++]=WTSVirtualChannelManagerGetEventHandle(vcm);
   if(WaitForMultipleObjects(count,handles,FALSE,20)==WAIT_FAILED||!peer->CheckFileDescriptor(peer))break;
   if(peer->activated && !WTSVirtualChannelManagerCheckFileDescriptor(vcm))break;
-  UINT32 width=atomic_exchange(&resizeWidth,0);
+  UINT32 width=peer->activated ? atomic_exchange(&resizeWidth,0) : 0;
   if(width && peer->activated){
    freerdp_settings_set_uint32(settings,FreeRDP_DesktopWidth,width);
    freerdp_settings_set_uint32(settings,FreeRDP_DesktopHeight,atomic_load(&resizeHeight));
