@@ -6,6 +6,7 @@
 #include <stdatomic.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/gdi/gdi.h>
 #include <freerdp/input.h>
@@ -41,6 +42,16 @@ static void packet(uint8_t kind, NSData *data) {
  pthread_mutex_unlock(&outputLock);
 }
 static void status(NSString *text) { packet(2, [text dataUsingEncoding:NSUTF8StringEncoding]); }
+static void vncError(const char *format, ...) {
+ char buffer[4096]; va_list args; va_start(args, format); vsnprintf(buffer, sizeof(buffer), format, args); va_end(args);
+ packet(6, [[NSString stringWithUTF8String:buffer] ?: @"VNC protocol error" dataUsingEncoding:NSUTF8StringEncoding]);
+}
+static void vncLog(const char *format, ...) {
+ // Keep negotiation/failure details, omit server desktop names and framebuffer contents.
+ if (!strstr(format, "security") && !strstr(format, "auth") && !strstr(format, "protocol") && !strstr(format, "failed") && !strstr(format, "Unable") && !strstr(format, "Unknown") && !strstr(format, "timeout")) return;
+ char buffer[4096]; va_list args; va_start(args, format); vsnprintf(buffer, sizeof(buffer), format, args); va_end(args);
+ packet(6, [[NSString stringWithUTF8String:buffer] ?: @"VNC negotiation" dataUsingEncoding:NSUTF8StringEncoding]);
+}
 static void frame(const uint8_t *pixels, int width, int height, int stride) {
  if (!pixels || width < 1 || height < 1 || width > 4096 || height > 2160) return;
  uint32_t dimensions[2] = { htonl(width), htonl(height) };
@@ -79,7 +90,7 @@ static DWORD verifyCertificate(freerdp *rdp, const char *host, UINT16 port, cons
  [certificateCondition lock]; certificateDecision = -1;
  NSDictionary *info = @{@"host": [NSString stringWithUTF8String:host ?: ""], @"subject": [NSString stringWithUTF8String:subject ?: ""], @"issuer": [NSString stringWithUTF8String:issuer ?: ""], @"fingerprint": [NSString stringWithUTF8String:fingerprint ?: ""]};
  packet(4, [NSJSONSerialization dataWithJSONObject:info options:0 error:nil]);
- NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:90];
+ NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:300];
  while (certificateDecision < 0 && !atomic_load(&stopped)) if (![certificateCondition waitUntilDate:deadline]) break;
  DWORD result = certificateDecision == 2 ? 2 : 0;
  [certificateCondition unlock]; return result;
@@ -176,7 +187,11 @@ static void runRDP(void) {
  freerdp_settings_set_bool(s, FreeRDP_NlaSecurity, TRUE); freerdp_settings_set_bool(s, FreeRDP_TlsSecurity, TRUE);
  freerdp_settings_set_bool(s, FreeRDP_RdpSecurity, FALSE); freerdp_settings_set_bool(s, FreeRDP_IgnoreCertificate, FALSE);
  freerdp_settings_set_uint32(s, FreeRDP_TcpConnectTimeout, 15000);
- if (!freerdp_connect(rdp)) { status([NSString stringWithFormat:@"RDP connection failed (0x%08x). Check credentials, certificate and remote desktop service.", freerdp_get_last_error(rdp->context)]); }
+ if (!freerdp_connect(rdp)) {
+  UINT32 error = freerdp_get_last_error(rdp->context);
+  packet(6, [[NSString stringWithFormat:@"RDP error 0x%08x %s: %s", error, freerdp_get_last_error_name(error), freerdp_get_last_error_string(error)] dataUsingEncoding:NSUTF8StringEncoding]);
+  status([NSString stringWithFormat:@"RDP connection failed (0x%08x). Check credentials, certificate and remote desktop service.", error]);
+ }
  else {
   while (!atomic_load(&stopped) && !freerdp_shall_disconnect_context(rdp->context)) {
    @autoreleasepool {
@@ -219,6 +234,8 @@ static void vncClipboard(rfbClient *client, const char *text, int length) {
 }
 static void vncClipboardUTF8(rfbClient *client, const char *text, int length) { if ([configuration[@"clipboard"] boolValue] && length >= 0 && length <= 1024*1024) packet(3, [NSData dataWithBytes:text length:length]); }
 static void runVNC(void) {
+ rfbClientErr = vncError;
+ rfbClientLog = vncLog;
  rfbClient *client = rfbGetClient(8, 3, 4); if (!client) return;
  client->serverHost = strdup([configuration[@"host"] UTF8String]); client->serverPort = [configuration[@"port"] intValue];
  client->format.redShift = 0; client->format.greenShift = 8; client->format.blueShift = 16; client->format.bigEndian = FALSE;
@@ -228,6 +245,8 @@ static void runVNC(void) {
  client->appData.useRemoteCursor = FALSE; client->appData.enableJPEG = FALSE;
  if (!rfbInitClient(client, NULL, NULL)) { status(@"VNC connection failed. Check password, host and VNC service."); return; }
  status(@"connected"); int buttons = 0;
+ // Request a complete initial framebuffer without requiring mouse/keyboard activity.
+ SendFramebufferUpdateRequest(client, 0, 0, client->width, client->height, FALSE);
  while (!atomic_load(&stopped)) {
   @autoreleasepool {
    for (NSDictionary *item in takeInputs()) {

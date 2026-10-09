@@ -15,6 +15,9 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "打开连接日志": "Open Connection Logs",
+        "等待确认证书": "Waiting for certificate approval",
+        "无法验证服务器证书。请核对服务器身份，是否仅本次信任？": "The server certificate cannot be verified. Check the server identity before trusting it for this session.",
         "连接书签": "Connection Bookmarks",
         "RDP 连接失败（%@），请检查登录信息、证书和远程桌面服务。": "RDP connection failed (%@). Check credentials, certificate and remote desktop service.",
         "VNC 连接失败，请检查密码、主机和 VNC 服务。": "VNC connection failed. Check password, host and VNC service.",

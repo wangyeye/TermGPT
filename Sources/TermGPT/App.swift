@@ -624,6 +624,7 @@ struct BookmarkView: View {
                 Button(L("取消")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
                 Button(L("保存")) {
+                    bookmark.host = Bookmark.cleanPastedAddress(bookmark.host)
                     do { try workspace.saveBookmark(bookmark, password: password); dismiss() }
                     catch { formError = error.localizedDescription }
                 }.buttonStyle(.borderedProminent).disabled(bookmark.name.isEmpty || bookmark.host.isEmpty)

@@ -28,8 +28,11 @@ struct Bookmark: Codable, Identifiable, Equatable {
     var clipboardSync: Bool?
     var kind: ConnectionKind { connectionKind ?? .ssh }
     var syncClipboard: Bool { clipboardSync ?? true }
+    static func cleanPastedAddress(_ value: String) -> String {
+        String(value.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
     func validate() throws {
-        guard !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }), !user.hasPrefix("-"), (1...65535).contains(port) else { throw AppError.message("主机、用户名或端口无效") }
+        guard !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }), !host.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }), !user.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }), !user.hasPrefix("-"), (1...65535).contains(port) else { throw AppError.message("主机、用户名或端口无效") }
     }
     func arguments() throws -> [String] {
         try validate()
@@ -158,7 +161,11 @@ struct SavedState: Codable {
 enum DiskStore {
     static var directory: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/TermGPT") }
     static var url: URL { directory.appendingPathComponent("workspace.json") }
-    static func load() -> SavedState? { guard let data = try? Data(contentsOf: url) else { return nil }; return try? JSONDecoder().decode(SavedState.self, from: data) }
+    static func load() -> SavedState? {
+        guard let data = try? Data(contentsOf: url), var state = try? JSONDecoder().decode(SavedState.self, from: data) else { return nil }
+        for index in state.bookmarks.indices { state.bookmarks[index].host = Bookmark.cleanPastedAddress(state.bookmarks[index].host) }
+        return state
+    }
     static func save(_ state: SavedState) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try JSONEncoder().encode(state).write(to: url, options: .atomic)

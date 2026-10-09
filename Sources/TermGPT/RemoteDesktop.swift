@@ -1,5 +1,32 @@
 import AppKit
 import SwiftUI
+import Darwin
+
+/// Restricted local diagnostics; never records input, clipboard or framebuffer payloads.
+final class DesktopLog {
+    static let directory = DiskStore.directory.appendingPathComponent("Logs")
+    private let handle: FileHandle?
+    private let lock = NSLock()
+    private let secrets: [String]
+    init(bookmark: Bookmark, password: String, directory: URL = DesktopLog.directory) {
+        secrets = [password, bookmark.host, bookmark.user, bookmark.domain ?? ""].filter { !$0.isEmpty }.sorted { $0.count > $1.count }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        for file in files.filter({ $0.pathExtension == "jsonl" }).sorted(by: { $0.lastPathComponent > $1.lastPathComponent }).dropFirst(19) { try? FileManager.default.removeItem(at: file) }
+        let url = directory.appendingPathComponent("desktop-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString).jsonl")
+        FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
+        handle = try? FileHandle(forWritingTo: url)
+        record("start", "protocol=\(bookmark.kind.rawValue) port=\(bookmark.port)")
+    }
+    func record(_ event: String, _ detail: String = "") {
+        var text = String(detail.prefix(4096))
+        for secret in secrets { text = text.replacingOccurrences(of: secret, with: "[redacted]") }
+        guard let data = try? JSONSerialization.data(withJSONObject: ["time": ISO8601DateFormatter().string(from: Date()), "event": event, "detail": text]) else { return }
+        lock.lock(); defer { lock.unlock() }
+        if let offset = try? handle?.offset(), offset < 2 * 1024 * 1024 { try? handle?.write(contentsOf: data + Data([10])) }
+    }
+    deinit { try? handle?.close() }
+}
 
 /// One isolated helper per desktop. Passwords travel only over stdin, never command arguments.
 final class RemoteDesktop: ObservableObject {
@@ -17,24 +44,33 @@ final class RemoteDesktop: ObservableObject {
     private var clipboardTimer: Timer?
     private var clipboardCount = NSPasteboard.general.changeCount
     private var closed = false
+    private var log: DesktopLog?
+    private var certificateAlert: NSAlert?
+    private var receivedFrame = false
     private let frameLock = NSLock()
     private var pendingFrame: Data?
     private var frameScheduled = false
     var active = false {
         didSet { if active && !oldValue { syncLocalClipboard(force: true) } }
     }
-    init(bookmark: Bookmark) { self.bookmark = bookmark; view.kind = bookmark.kind; view.send = { [weak self] item in self?.send(item) } }
-    func start() throws {
-        let path = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/TermGPTRemoteDesktop")
+    init(bookmark: Bookmark) { self.bookmark = bookmark; view.kind = bookmark.kind; view.send = { [weak self] item in self?.send(item) }; view.firstFrameDrawn = { [weak self] in self?.log?.record("first_frame_drawn") } }
+    func start(helperURL: URL? = nil) throws {
+        let path = helperURL ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/TermGPTRemoteDesktop")
         guard FileManager.default.isExecutableFile(atPath: path.path) else { throw AppError.message("缺少远程桌面组件，请使用完整安装包") }
         let password = try SSHPasswordStore.read(id: bookmark.id) ?? ""
+        // EPIPE from a helper that has exited must not terminate the application.
+        signal(SIGPIPE, SIG_IGN)
+        log = DesktopLog(bookmark: bookmark, password: password)
         let task = Process(), stdin = Pipe(), stdout = Pipe()
         task.executableURL = path; task.standardInput = stdin; task.standardOutput = stdout; task.standardError = FileHandle.nullDevice
         task.environment = ["PATH": "/usr/bin:/bin", "WLOG_LEVEL": "OFF"]
         try task.run(); process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
         send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard])
         let handle = stdout.fileHandleForReading
+        let logger = log
+        task.terminationHandler = { task in logger?.record("helper_exit", "code=\(task.terminationStatus) reason=\(task.terminationReason.rawValue)") }
         reads.async { [weak self] in
+            defer { try? handle.close() }
             var decoder = DesktopPacketDecoder()
             do {
                 while let data = try handle.read(upToCount: 65536), !data.isEmpty {
@@ -51,7 +87,8 @@ final class RemoteDesktop: ObservableObject {
     func send(_ item: [String: Any]) {
         guard !closed, let handle = input, var data = try? JSONSerialization.data(withJSONObject: item) else { return }
         data.append(10)
-        writes.async { try? handle.write(contentsOf: data) }
+        let logger = log
+        writes.async { do { try handle.write(contentsOf: data) } catch { logger?.record("input_pipe_closed") } }
     }
     private func enqueueFrame(_ data: Data) {
         frameLock.lock(); pendingFrame = data
@@ -66,9 +103,13 @@ final class RemoteDesktop: ObservableObject {
     private func receive(_ packet: DesktopPacket) {
         guard !closed else { return }
         switch packet.kind {
-        case 1: if let image = DesktopFrame.decode(packet.data) { view.image = image; view.needsDisplay = true }
+        case 1: if let image = DesktopFrame.decode(packet.data) {
+            if !receivedFrame { receivedFrame = true; log?.record("first_frame_received", "width=\(image.width) height=\(image.height)") }
+            view.image = image
+        }
         case 2:
             let message = String(decoding: packet.data, as: UTF8.self)
+            log?.record("status", message)
             if message == "connected" { connected = true; status = L("已连接"); syncLocalClipboard(force: true) }
             else if message == "connecting" { status = L("连接中…") }
             else if message == "disconnected" { connected = false; status = L("已断开") }
@@ -84,8 +125,10 @@ final class RemoteDesktop: ObservableObject {
             guard active, connected, bookmark.syncClipboard, packet.data.count <= 1024 * 1024, let text = String(data: packet.data, encoding: .utf8) else { return }
             NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string); clipboardCount = NSPasteboard.general.changeCount
         case 4:
-            if let values = try? JSONDecoder().decode(RemoteCertificate.self, from: packet.data) { certificate = values }
+            log?.record("certificate", "approval requested")
+            if let values = try? JSONDecoder().decode(RemoteCertificate.self, from: packet.data) { certificate = values; status = L("等待确认证书"); presentCertificate(); changed?() }
         case 5: status = L("当前 VNC 服务器不支持 Unicode 剪贴板文本。"); changed?()
+        case 6: log?.record("protocol", String(decoding: packet.data, as: UTF8.self))
         default: break
         }
     }
@@ -96,7 +139,19 @@ final class RemoteDesktop: ObservableObject {
         guard active, connected, bookmark.syncClipboard, let text = pasteboard.string(forType: .string), text.utf8.count <= 1024 * 1024 else { return }
         send(["type": "clipboard", "text": text])
     }
-    func answerCertificate(_ accept: Bool) { send(["type": "certificate", "accept": accept]); certificate = nil }
+    func answerCertificate(_ accept: Bool) { log?.record("certificate", accept ? "accepted for this session" : "rejected"); send(["type": "certificate", "accept": accept]); certificate = nil }
+    func presentCertificate() {
+        guard !closed, active, let certificate, certificateAlert == nil, let window = view.window, window.attachedSheet == nil else { return }
+        let alert = NSAlert(); alert.alertStyle = .warning
+        alert.messageText = L("验证 RDP 服务器证书")
+        alert.informativeText = L("无法验证服务器证书。请核对服务器身份，是否仅本次信任？") + "\n\n" + certificate.host + "\n" + certificate.subject + "\n" + certificate.issuer + "\n" + certificate.fingerprint
+        alert.addButton(withTitle: L("仅本次信任")); alert.addButton(withTitle: L("取消"))
+        certificateAlert = alert
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }; self.certificateAlert = nil
+            guard !self.closed else { return }; self.answerCertificate(response == .alertFirstButtonReturn)
+        }
+    }
     private func ended(message: String? = nil) {
         guard !closed else { return }; connected = false
         if let message { status = message } else if status == L("已连接") || status == L("连接中…") { status = L("已断开") }
@@ -104,10 +159,14 @@ final class RemoteDesktop: ObservableObject {
     }
     func close() {
         guard !closed else { return }; send(["type": "stop"]); closed = true
+        log?.record("close", "user closed tab")
+        if let alert = certificateAlert, let parent = alert.window.sheetParent { parent.endSheet(alert.window, returnCode: .abort) }
+        certificateAlert = nil
         clipboardTimer?.invalidate(); clipboardTimer = nil; connected = false
         let task = process, handle = input
         writes.async { try? handle?.close(); if task?.isRunning == true { task?.terminate() } }
-        try? output?.close(); view.send = nil; changed = nil
+        // The reader owns stdout until EOF; never close it during a blocking read.
+        output = nil; input = nil; certificate = nil; view.send = nil; changed = nil
     }
     deinit { clipboardTimer?.invalidate(); if process?.isRunning == true { process?.terminate() } }
 }
@@ -149,6 +208,8 @@ struct DesktopHost: NSViewRepresentable {
     func makeNSView(context: Context) -> DesktopCanvas { desktop.view }
     func updateNSView(_ view: DesktopCanvas, context: Context) {
         desktop.active = active
+        view.needsDisplay = true
+        if active { DispatchQueue.main.async { [weak desktop] in desktop?.presentCertificate() } }
         if !active && view.window?.firstResponder === view { view.window?.makeFirstResponder(nil) }
     }
 }
@@ -160,6 +221,8 @@ struct DesktopPane: View {
             HStack {
                 Text(desktop.bookmark.kind.rawValue.uppercased() + " · " + desktop.bookmark.host).font(.caption)
                 Spacer()
+                if desktop.certificate != nil { Button(L("验证 RDP 服务器证书")) { desktop.presentCertificate() } }
+                Button { NSWorkspace.shared.open(DesktopLog.directory) } label: { Image(systemName: "doc.text.magnifyingglass") }.help(L("打开连接日志"))
                 Text(desktop.status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 if desktop.bookmark.syncClipboard { Image(systemName: "doc.on.clipboard").help(L("同步当前桌面的文本剪贴板")) }
                 if desktop.bookmark.kind == .rdp {
@@ -167,16 +230,16 @@ struct DesktopPane: View {
                 }
             }.padding(8)
             DesktopHost(desktop: desktop, active: active)
-        }.alert(item: $desktop.certificate) { certificate in
-            Alert(title: Text(L("验证 RDP 服务器证书")), message: Text(certificate.host + "\n" + certificate.subject + "\n" + certificate.issuer + "\n" + certificate.fingerprint), primaryButton: .default(Text(L("仅本次信任"))) { desktop.answerCertificate(true) }, secondaryButton: .cancel { desktop.answerCertificate(false) })
         }
     }
 }
 /// Scales a framebuffer with correct pointer mapping; hardware keys preserve remote shortcuts.
 final class DesktopCanvas: NSView {
     var kind: ConnectionKind = .rdp
-    var image: CGImage?
+    var image: CGImage? { didSet { needsDisplay = true; if window != nil { displayIfNeeded() } } }
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); needsDisplay = true }
     var send: (([String: Any]) -> Void)?
+    var firstFrameDrawn: (() -> Void)?
     private var buttons = 0
     private var modifiers: NSEvent.ModifierFlags = []
     private var pressedSymbols: [UInt16: Int] = [:]
@@ -194,7 +257,9 @@ final class DesktopCanvas: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.setFill(); bounds.fill()
-        if let image { NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)).draw(in: imageRect, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil) }
+        if let image { NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)).draw(in: imageRect, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
+            if !imageRect.isEmpty { firstFrameDrawn?(); firstFrameDrawn = nil }
+        }
     }
     private func mouse(_ event: NSEvent, flags: Int) {
         guard let image, !imageRect.isEmpty else { return }
