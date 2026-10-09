@@ -15,6 +15,16 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "记事本": "Notepad",
+        "新增笔记": "New Note",
+        "搜索标题、文件夹或内容": "Search title, folder or content",
+        "没有匹配的笔记": "No matching notes",
+        "笔记仅保存在本机 JSON 配置中。": "Notes stay in your local JSON configuration.",
+        "删除笔记？": "Delete note?",
+        "编辑笔记": "Edit Note",
+        "标题": "Title",
+        "内容": "Content",
+        "笔记内容": "Note Content",
         "搜索终端内容": "Find in Terminal",
         "区分大小写": "Match Case",
         "正则表达式": "Regular Expression",

@@ -149,6 +149,13 @@ struct RunProposal: Identifiable {
 @MainActor final class Workspace: ObservableObject {
     private var readyToPersist = false
     @Published var savedCommands: [SavedCommand] = []
+    @Published var savedNotes: [SavedNote] = []
+    @Published var notepadShown = false
+    func saveNote(_ item: SavedNote) {
+        var note = item; note.updatedAt = Date()
+        if let index = savedNotes.firstIndex(where: { $0.id == note.id }) { savedNotes[index] = note }
+        else { savedNotes.append(note) }; persist()
+    }
     @Published var commandLibraryShown = false
     @Published var commandDraft: SavedCommand?
     func saveCommand(_ item: SavedCommand) {
@@ -195,7 +202,7 @@ struct RunProposal: Identifiable {
     var currentChat: Chat { chats.first { $0.id == chatID } ?? chats[0] }
     init() {
         let state = DiskStore.load()
-        if let state { bookmarks = state.bookmarks; recentBookmarkIDs = BookmarkSearch.recent(state.recentBookmarkIDs ?? [], bookmarks: state.bookmarks).map(\.id); folders = state.folders ?? []; preferences = state.preferences; savedCommands = state.savedCommands ?? []; if !state.chats.isEmpty { chats = state.chats } }
+        if let state { bookmarks = state.bookmarks; recentBookmarkIDs = BookmarkSearch.recent(state.recentBookmarkIDs ?? [], bookmarks: state.bookmarks).map(\.id); folders = state.folders ?? []; preferences = state.preferences; savedCommands = state.savedCommands ?? []; savedNotes = state.savedNotes ?? []; if !state.chats.isEmpty { chats = state.chats } }
         Localization.shared.selection = preferences.language
         chatID = chats.first?.id
         if preferences.restoreWorkspace, let restoration = state?.restoredWorkspace {
@@ -219,7 +226,7 @@ struct RunProposal: Identifiable {
         persist()
     }
     func persist() {
-        do { try DiskStore.save(SavedState(savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        do { try DiskStore.save(SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
     }
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()

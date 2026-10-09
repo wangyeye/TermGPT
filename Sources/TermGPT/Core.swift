@@ -162,6 +162,7 @@ enum Safety {
     }
 }
 struct SavedState: Codable {
+    var savedNotes: [SavedNote]? = nil
     var savedCommands: [SavedCommand]? = nil
     var restoredWorkspace: RestoredWorkspace? = nil
     var recentBookmarkIDs: [UUID]? = nil

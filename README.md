@@ -127,6 +127,10 @@ Desktop logs omit passwords, configured host/user/domain values, clipboard and p
 - **Settings → Restore workspace on startup** defaults on. Tab order, selected tab and existing layout settings persist in local `workspace.json`; restored tabs stay disconnected until **Restore Connection** is clicked. Bookmark edits apply on restart and removed bookmarks are skipped. Terminal output, running processes and remote sessions are not restored. Disable the setting to start with a new local terminal.
 - Commands and workspace references remain local and are excluded from releases. Saved commands are plain text in the local configuration; avoid embedding passwords.
 
+## Notepad
+
+Click the **Notepad** icon beside Command Library in the top-right toolbar, or choose **Terminal → Notepad**. Create notes with a title, optional folder and multiline plain-text content. Search matches title, folder and content; Edit opens the full text, Copy copies the entire content, and Delete asks for confirmation. Save writes changes; Cancel leaves the saved note unchanged. Notes persist in `workspace.json` locally and are excluded from public releases. They are plain text and are not automatically sent to AI or a terminal.
+
 ## Build, test and release
 
 See the [development and script guide](docs/DEVELOPMENT.md) for prerequisites, all script purposes, testing, diagnostics and release instructions.
