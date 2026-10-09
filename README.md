@@ -98,7 +98,9 @@ Credentials are **plain JSON**, with directory/file permissions 0700/0600 and no
 
 Source and release packages exclude personal configuration, credentials, chats, screenshots and logs. Diagnostics are not uploaded automatically. AI requests share selected messages/history/context with the chosen provider. Redaction defaults to on but cannot identify every secret; export redacts by default. WebKit maintains separate local website storage.
 
-Desktop logs omit passwords, configured host/user/domain values, clipboard and pixels; at most 20 sessions are retained, 2 MiB each. Use the desktop log button and macOS Console crash reports to investigate failures.
+VNC/RDP desktops fill the tab without a top status bar. Right-click the desktop tab for connection status, logs, certificate verification and RDP Ctrl+Alt+Del. Connection and failure messages appear over the desktop until connected.
+
+Desktop logs omit passwords, configured host/user/domain values, clipboard and pixels; at most 20 sessions are retained, 2 MiB each. Use the tab's log menu and macOS Console crash reports to investigate failures.
 
 ## Build, test and release
 

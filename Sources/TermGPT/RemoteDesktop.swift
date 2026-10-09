@@ -258,20 +258,26 @@ struct DesktopPane: View {
     @ObservedObject var desktop: RemoteDesktop
     let active: Bool
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(desktop.bookmark.kind.rawValue.uppercased() + " · " + desktop.bookmark.host).font(.caption)
-                Spacer()
+        DesktopHost(desktop: desktop, active: active)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay {
+                if !desktop.connected {
+                    Text(L(desktop.status)).padding(12)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+}
+struct DesktopTabActions: View {
+    @ObservedObject var desktop: RemoteDesktop
+    var body: some View {
+                Text(L(desktop.status))
                 if desktop.certificate != nil { Button(L("验证 RDP 服务器证书")) { desktop.presentCertificate() } }
-                Button { NSWorkspace.shared.open(DesktopLog.directory) } label: { Image(systemName: "doc.text.magnifyingglass") }.help(L("打开连接日志"))
-                Text(desktop.status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                if desktop.bookmark.syncClipboard { Image(systemName: "doc.on.clipboard").help(L("同步当前桌面的文本剪贴板")) }
+                Button(L("打开连接日志")) { NSWorkspace.shared.open(DesktopLog.directory) }
                 if desktop.bookmark.kind == .rdp {
                     Button("Ctrl+Alt+Del") { desktop.send(["type": "key", "scan": 0x1d, "keysym": 0xffe3, "down": true]); desktop.send(["type": "key", "scan": 0x38, "keysym": 0xffe9, "down": true]); desktop.send(["type": "key", "scan": 0x153, "keysym": 0xffff, "down": true]); desktop.send(["type": "key", "scan": 0x153, "keysym": 0xffff, "down": false]); desktop.send(["type": "key", "scan": 0x38, "keysym": 0xffe9, "down": false]); desktop.send(["type": "key", "scan": 0x1d, "keysym": 0xffe3, "down": false]) }
                 }
-            }.padding(8)
-            DesktopHost(desktop: desktop, active: active)
-        }
     }
 }
 /// Scales a framebuffer with correct pointer mapping; hardware keys preserve remote shortcuts.

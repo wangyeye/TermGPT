@@ -150,6 +150,10 @@ struct MainView: View {
                     ForEach(workspace.sessions) { session in
                         TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
                             .contextMenu {
+                                if let desktop = session.desktop {
+                                    DesktopTabActions(desktop: desktop)
+                                    Divider()
+                                }
                                 if let bookmark = session.bookmark, bookmark.kind == .ssh {
                                     Button(L("SFTP 文件")) { sftpBookmark = bookmark }
                                     Divider()
