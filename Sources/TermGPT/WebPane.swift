@@ -46,9 +46,13 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
     var changed: (() -> Void)?
     private var observations: [NSKeyValueObservation] = []
     private var closed = false
+    private let passwordAutofill = WebPasswordAutofill()
     private var trustedCertificates: [String: String] = [:]
     override init() {
         super.init()
+        passwordAutofill.browser = self
+        view.configuration.userContentController.addScriptMessageHandler(passwordAutofill, contentWorld: .page, name: WebPasswordAutofill.handler)
+        view.configuration.userContentController.addUserScript(WKUserScript(source: WebPasswordAutofill.script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         view.navigationDelegate = self; view.uiDelegate = self
         observations = [
             view.observe(\.isLoading, options: [.new]) { [weak self] _, _ in self?.update() },
@@ -159,10 +163,29 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
         alert.informativeText = prompt
         alert.addButton(withTitle: L("好")); alert.addButton(withTitle: L("取消"))
         let isPassword = prompt.range(of: "password|passphrase|密码|口令", options: [.regularExpression, .caseInsensitive]) != nil
-        let input: NSTextField = isPassword ? NSSecureTextField(string: defaultText ?? "") : NSTextField(string: defaultText ?? "")
+        let origin = WebPasswordAutofill.origin(frame.request.url)
+        let key = "prompt:" + (origin ?? "") + ":" + prompt
+        let canRemember = isPassword && frame.isMainFrame && origin != nil && origin == WebPasswordAutofill.origin(view.url)
+        let saved = canRemember ? (try? CredentialStore.shared.read().webPasswords[key]) : nil
+        let input: NSTextField = isPassword ? NSSecureTextField(string: saved?.password ?? defaultText ?? "") : NSTextField(string: defaultText ?? "")
         input.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
-        alert.accessoryView = input; alert.window.initialFirstResponder = input
-        completionHandler(alert.runModal() == .alertFirstButtonReturn && !closed ? input.stringValue : nil)
+        let fields = NSStackView(); fields.orientation = .vertical; fields.spacing = 10
+        fields.addArrangedSubview(input)
+        input.widthAnchor.constraint(equalToConstant: 300).isActive = true
+        let remember = NSButton(checkboxWithTitle: L("保存密码并自动填充"), target: nil, action: nil)
+        remember.state = saved == nil ? .off : .on
+        if canRemember { fields.addArrangedSubview(remember) }
+        fields.frame = NSRect(x: 0, y: 0, width: 300, height: canRemember ? 58 : 24)
+        alert.accessoryView = fields; alert.window.initialFirstResponder = input
+        if alert.runModal() == .alertFirstButtonReturn && !closed {
+            if canRemember {
+                do { try CredentialStore.shared.update {
+                    if remember.state == .on { $0.webPasswords[key] = WebCredential(username: "", password: input.stringValue) }
+                    else { $0.webPasswords.removeValue(forKey: key) }
+                } } catch { self.error = L("保存网页密码失败") }
+            }
+            completionHandler(input.stringValue)
+        } else { completionHandler(nil) }
     }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { error = ""; update() }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { update() }
@@ -175,6 +198,7 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { error = L("网页进程已退出，请刷新重试"); update() }
     func close() {
         closed = true; changed = nil; observations.removeAll()
+        view.configuration.userContentController.removeScriptMessageHandler(forName: WebPasswordAutofill.handler, contentWorld: .page)
         view.stopLoading(); view.navigationDelegate = nil; view.uiDelegate = nil
     }
 }

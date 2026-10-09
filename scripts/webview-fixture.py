@@ -17,12 +17,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
         page = 'Second page' if self.path == '/second' else 'TermGPT WebView fixture'
-        body = f'<!doctype html><html><head><title>{page}</title></head><body><h1>{page}</h1><input placeholder="Spelling test"><a href="/auth">Basic Auth test</a><a href="/second">Next page</a><a href="/" target="_blank">Open in browser tab</a></body></html>'.encode()
+        body = f'<!doctype html><html><head><title>{page}</title></head><body><h1>{page}</h1><input placeholder="Spelling test"><a href="/auth">Basic Auth test</a><a href="/second">Next page</a><a href="/" target="_blank">Open in browser tab</a><form action="/second" method="post"><input name="username" autocomplete="username" placeholder="Username"><input type="password" name="password" autocomplete="current-password" placeholder="Password"><button type="submit">Login</button></form><button onclick="prompt(\'Password Required:\')">noVNC prompt test</button></body></html>'.encode()
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        self.send_response(303)
+        self.send_header("Location", "/second")
+        self.end_headers()
     def log_message(self, *_):
         pass
 

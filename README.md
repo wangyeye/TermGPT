@@ -53,7 +53,7 @@ Streaming replies do not force-scroll: you can read older messages and copy comm
 
 The address/navigation bar is **hidden by default**. Enable Show Web Address Bar in Settings for Back, Forward, Reload and the URL field; toggling does not reload the page.
 
-HTTP Basic/Digest challenges open a username/password dialog. Select **Save Password** to reuse credentials after restarting. Credentials are isolated by scheme, host, port, realm and authentication method. Ordinary website login forms do **not** yet support automatic password saving/autofill.
+HTTP Basic/Digest challenges open a username/password dialog. Select **Save Password** to reuse credentials after restarting. Credentials are isolated by scheme, host, port, realm and authentication method. Standard username/password login forms ask whether to save the login when you submit. Choosing Save and Autofill fills that exact website origin on later visits without submitting the form. Dynamic forms are supported; third-party frames, passkeys, multi-step or nonstandard controls may need manual input. JavaScript password prompts (including noVNC) support optional saved, prefilled passwords.
 
 Untrusted HTTPS certificates show the host, certificate subject and SHA-256 fingerprint. Choose **Trust Once**, **Always Trust** or Cancel. Always Trust saves the fingerprint for that host/port; a changed certificate prompts again. Other hosts retain normal certificate validation.
 
