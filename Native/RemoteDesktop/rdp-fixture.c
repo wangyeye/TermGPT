@@ -5,11 +5,14 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <stdatomic.h>
 #include <freerdp/peer.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/crypto/certificate.h>
 #include <freerdp/crypto/privatekey.h>
 #include <freerdp/server/cliprdr.h>
+#include <freerdp/server/disp.h>
+#include <freerdp/channels/wtsvc.h>
 #include <freerdp/channels/channels.h>
 #include <winpr/synch.h>
 #include <winpr/wtsapi.h>
@@ -17,6 +20,14 @@
 #include <winpr/ssl.h>
 static CliprdrServerContext *clip;
 static HANDLE vcm;
+static DispServerContext *display;
+static atomic_uint resizeWidth, resizeHeight;
+static UINT resized(DispServerContext *context, const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *pdu) {
+ if (pdu->NumMonitors != 1) return ERROR_INVALID_DATA;
+ printf("resize %u %u\n", pdu->Monitors[0].Width, pdu->Monitors[0].Height); fflush(stdout);
+ atomic_store(&resizeHeight,pdu->Monitors[0].Height); atomic_store(&resizeWidth,pdu->Monitors[0].Width);
+ return CHANNEL_RC_OK;
+}
 static const BYTE remoteText[] = {'r',0,'e',0,'m',0,'o',0,'t',0,'e',0,' ',0,'R',0,'D',0,'P',0,' ',0,0x2d,0x4e,0x87,0x65,0,0};
 static const BYTE localText[] = {'l',0,'o',0,'c',0,'a',0,'l',0,' ',0,'R',0,'D',0,'P',0,' ',0,'f',0,'i',0,'x',0,'t',0,'u',0,'r',0,'e',0,' ',0,0x2d,0x4e,0x87,0x65,0,0};
 static UINT clientCapabilities(CliprdrServerContext *ctx, const CLIPRDR_CAPABILITIES *caps) {
@@ -44,6 +55,7 @@ static BOOL activate(freerdp_peer *peer) {
  BITMAP_DATA data={0}; data.destRight=15;data.destBottom=15;data.width=16;data.height=16;data.bitsPerPixel=32;data.bitmapLength=sizeof(pixels);data.bitmapDataStream=pixels;
  BITMAP_UPDATE update={0};update.number=1;update.rectangles=&data;update.skipCompression=TRUE;
  if (!peer->context->update->BitmapUpdate(peer->context,&update)) return FALSE;
+ if (clip) return TRUE;
  clip=cliprdr_server_context_new(vcm);if(!clip)return FALSE;
  clip->rdpcontext=peer->context;clip->autoInitializationSequence=TRUE;clip->useLongFormatNames=TRUE;
  clip->ClientCapabilities=clientCapabilities;clip->ClientFormatList=clientFormats;clip->ClientFormatDataRequest=dataRequest;clip->ClientFormatDataResponse=dataResponse;
@@ -71,6 +83,22 @@ int main(int argc,char **argv){
  vcm=WTSOpenServerA((LPSTR)peer->context);
  peer->PostConnect=postConnect;peer->Activate=activate;peer->context->input->KeyboardEvent=keyboard;peer->context->input->MouseEvent=mouse;
  if(!peer->Initialize(peer))return 2;
- for(;;){HANDLE handles[64];DWORD count=peer->GetEventHandles(peer,handles,64);if(!count||WaitForMultipleObjects(count,handles,FALSE,20)==WAIT_FAILED||!peer->CheckFileDescriptor(peer)||!WTSVirtualChannelManagerCheckFileDescriptor(vcm))break;}
+ for(;;){HANDLE handles[64];DWORD count=peer->GetEventHandles(peer,handles,63);if(!count)break;
+  if(peer->activated)handles[count++]=WTSVirtualChannelManagerGetEventHandle(vcm);
+  if(WaitForMultipleObjects(count,handles,FALSE,20)==WAIT_FAILED||!peer->CheckFileDescriptor(peer))break;
+  if(peer->activated && !WTSVirtualChannelManagerCheckFileDescriptor(vcm))break;
+  UINT32 width=atomic_exchange(&resizeWidth,0);
+  if(width && peer->activated){
+   freerdp_settings_set_uint32(settings,FreeRDP_DesktopWidth,width);
+   freerdp_settings_set_uint32(settings,FreeRDP_DesktopHeight,atomic_load(&resizeHeight));
+   if(!peer->context->update->DesktopResize(peer->context))break;
+  }
+  if (peer->activated && !display && WTSVirtualChannelManagerGetDrdynvcState(vcm)==DRDYNVC_STATE_READY) {
+   display=disp_server_context_new(vcm); if(!display)break;
+   display->rdpcontext=peer->context;display->MaxNumMonitors=1;display->MaxMonitorAreaFactorA=4096;display->MaxMonitorAreaFactorB=2160;display->DispMonitorLayout=resized;
+   if(display->Open(display)!=CHANNEL_RC_OK || display->DisplayControlCaps(display)!=CHANNEL_RC_OK)break;
+  }
+ }
+ if(display){display->Close(display);disp_server_context_free(display);}
  if(clip){clip->Stop(clip);cliprdr_server_context_free(clip);}WTSCloseServer(vcm);peer->Disconnect(peer);freerdp_peer_context_free(peer);freerdp_peer_free(peer);return 0;
 }

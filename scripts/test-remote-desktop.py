@@ -8,6 +8,7 @@ helper = Path(sys.argv[1] if len(sys.argv)>1 else '.build/remote-arm64/TermGPTRe
 if not helper.is_file(): raise SystemExit('Build scripts/build-remote-desktop.sh first')
 password_mode = '--password' in sys.argv
 black_mode = '--initial-black' in sys.argv
+resize_mode = '--resize' in sys.argv
 password = 'fixture8' if password_mode else ''
 listener = socket.socket(); listener.bind(('127.0.0.1',0)); listener.listen(1); listener.settimeout(20)
 events = queue.Queue(); errors = queue.Queue(); packets = queue.Queue()
@@ -47,6 +48,9 @@ def server():
                         framebuffer=struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,0)+(bytes([0,0,0,0]) if black_mode else bytes([255,0,0,0]))*12
                         text=b'remote clipboard fixture'
                         # One TCP write forces read-ahead of the next message after the framebuffer.
+                        if resize_mode:
+                            # Screen ID zero is valid and must survive the client's resize request.
+                            framebuffer += struct.pack('>BBHHHHHi',0,0,1,0,0,4,3,-308)+struct.pack('>B3xIHHHHI',1,0,0,0,4,3,0)
                         connection.sendall(framebuffer+struct.pack('>BBBBI',3,0,0,0,len(text))+text); sent=True
                 elif kind==4:
                     data=read_exact(connection,7); events.put(('key',data[0],struct.unpack('>I',data[3:])[0]))
@@ -60,6 +64,13 @@ def server():
                     data=read_exact(connection,7); length=struct.unpack('>I',data[3:])[0]
                     # No extended clipboard was advertised, so this remains Latin-1.
                     events.put(('clipboard',read_exact(connection,length)))
+                elif kind==251 and resize_mode:
+                    header=read_exact(connection,7); width,height,count=struct.unpack('>xHHB',header[:6])
+                    assert count==1
+                    screen=read_exact(connection,16); identifier,x,y,w,h,flags=struct.unpack('>IHHHHI',screen)
+                    assert identifier==0 and (w,h)==(width,height) and (x,y)==(0,0)
+                    events.put(('resize',width,height))
+                    connection.sendall(struct.pack('>BBHHHHHi',0,0,1,1,0,width,height,-308)+struct.pack('>B3xIHHHHI',1,0,0,0,width,height,0)+struct.pack('>BBHHHHHi',0,0,1,0,0,width,height,0)+bytes([255,0,0,0])*width*height)
                 else: raise AssertionError('Unexpected RFB message')
     except EOFError: pass
     except Exception as error: errors.put(error)
@@ -92,6 +103,15 @@ try:
             assert payload[8:]==bytes([255,0,0,0])*12;seen.add(1)
         if kind==3: assert payload==b'remote clipboard fixture';seen.add(3)
     assert seen=={1,3}
+    if resize_mode:
+        for size in [(800,600),(1000,700)]:
+            send(dict(type='resize',width=size[0],height=size[1]))
+            deadline=time.monotonic()+15
+            while True:
+                kind,payload=packets.get(timeout=15)
+                if kind==1 and struct.unpack('>II',payload[:8])==size:
+                    assert len(payload)==8+size[0]*size[1]*4;break
+                if time.monotonic()>deadline:raise AssertionError('Resize did not produce matching framebuffer')
     send(dict(type='key',scan=0x1e,keysym=0x61,down=True))
     send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1))
     send(dict(type='clipboard',text='local clipboard fixture'))
@@ -102,6 +122,7 @@ try:
     send(dict(type='stop'));process.wait(timeout=5)
     if not errors.empty(): raise errors.get()
     print('Real VNC '+('password authentication, ' if password_mode else 'handshake, ')+'framebuffer, keyboard, pointer and bidirectional text clipboard passed.')
+    if resize_mode:print('VNC dynamic resolution and valid screen ID zero passed at 800x600 and 1000x700.')
 finally:
     if process.poll() is None:process.kill();process.wait()
     listener.close();thread.join(timeout=2)

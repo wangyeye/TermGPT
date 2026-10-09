@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
             except Exception as error:failures.put(error)
         threading.Thread(target=read_packets,daemon=True).start()
         def send(item):client.stdin.write(json.dumps(item).encode()+b'\n');client.stdin.flush()
-        send(dict(protocol='rdp',host='127.0.0.1',port=port,user='fixture',password='synthetic-not-real',domain='',clipboard=True,diagnostic=True))
+        send(dict(protocol='rdp',host='127.0.0.1',port=port,user='fixture',password='synthetic-not-real',domain='',clipboard=True,diagnostic=True,width=800,height=600))
         seen=set();deadline=time.monotonic()+30
         while seen!={'certificate','frame','clipboard'} and time.monotonic()<deadline:
             kind,payload=packets.get(timeout=30)
@@ -47,17 +47,26 @@ with tempfile.TemporaryDirectory(prefix='termgpt-rdp-test-') as tmp:
                 info=json.loads(payload);assert info['fingerprint'];seen.add('certificate');send(dict(type='certificate',accept=True))
             elif kind==1:
                 width,height=struct.unpack('>II',payload[:8]);assert width>0 and height>0
+                assert (width,height)==(800,600),(width,height)
                 assert payload[8:11]==bytes([255,0,0]),payload[8:12];seen.add('frame')
             elif kind==3:
                 assert payload.decode()=='remote RDP 中文',payload;seen.add('clipboard')
             elif kind==2 and b'failed' in payload:raise AssertionError(payload.decode())
         assert seen=={'certificate','frame','clipboard'},seen
+        send(dict(type='resize',width=1000,height=700))
         send(dict(type='key',scan=0x1e,keysym=0x61,down=True));send(dict(type='mouse',x=2,y=1,flags=0x9000,buttons=1));send(dict(type='clipboard',text='local RDP fixture 中文'))
-        expected={'key','mouse','clipboard'};deadline=time.monotonic()+20
+        expected={'key','mouse','clipboard','resize 1000 700'};deadline=time.monotonic()+20
         while expected and time.monotonic()<deadline:expected.discard(events.get(timeout=20))
         assert not expected,expected
+        deadline=time.monotonic()+20
+        while True:
+            kind,payload=packets.get(timeout=20)
+            if kind==1 and struct.unpack('>II',payload[:8])==(1000,700):
+                assert len(payload)==8+1000*700*4;break
+            if time.monotonic()>deadline:raise AssertionError('RDP did not resize its framebuffer')
         send(dict(type='stop'));client.wait(timeout=5)
         print('Real TLS RDP certificate approval, bitmap, keyboard, pointer and bidirectional Unicode clipboard passed.')
+        print('RDP initial 800x600 resolution, dynamic 1000x700 monitor layout and resized framebuffer passed.')
         print('Fixture uses TLS security; production Windows NLA accounts require separate live verification.')
     finally:
         for process in [client,server]:

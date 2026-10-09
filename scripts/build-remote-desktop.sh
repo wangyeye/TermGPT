@@ -23,6 +23,7 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/source"
 cp -R Native/RemoteDesktop "$STAGE/native"
 cp -R .build/remote-sources/freerdp .build/remote-sources/libvnc "$STAGE/source/"
+python3 "$STAGE/native/patch-libvnc.py" "$STAGE/source/libvnc"
 cmake -S "$STAGE/native" -B "$STAGE/build" -DREMOTE_TESTS="$REMOTE_TESTS" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_EXPORT_PACKAGE_REGISTRY=OFF -DCMAKE_OSX_ARCHITECTURES="$ARCH" -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DREMOTE_SOURCES="$STAGE/source" -DOPENSSL_ROOT_DIR="$SDK" -DOPENSSL_USE_STATIC_LIBS=TRUE -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew -DCMAKE_C_FLAGS="-ffile-prefix-map=$STAGE=." -DCMAKE_CXX_FLAGS="-ffile-prefix-map=$STAGE=." > "$OUTPUT/remote-build.log" 2>&1
 cmake --build "$STAGE/build" --target TermGPTRemoteDesktop -j8 >> "$OUTPUT/remote-build.log" 2>&1
 cp -X "$STAGE/build/TermGPTRemoteDesktop" "$OUTPUT/TermGPTRemoteDesktop"

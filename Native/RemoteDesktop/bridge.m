@@ -13,6 +13,7 @@
 #include <freerdp/addin.h>
 #include <freerdp/client/channels.h>
 #include <freerdp/client/cliprdr.h>
+#include <freerdp/client/disp.h>
 #include <freerdp/channels/channels.h>
 #include <winpr/synch.h>
 #include <winpr/wlog.h>
@@ -27,6 +28,15 @@ static NSDictionary *configuration;
 static NSData *localClipboard;
 static CliprdrClientContext *clip;
 static BOOL clipboardReady = NO;
+static DispClientContext *display;
+static BOOL displayReady = NO;
+static UINT64 displayMaxArea;
+static UINT32 desiredWidth = 720, desiredHeight = 600, sentWidth, sentHeight;
+static void rememberResize(NSDictionary *item) {
+ int width = [item[@"width"] intValue], height = [item[@"height"] intValue];
+ if (width < 200 || height < 200 || width > 4096 || height > 2160) return;
+ desiredWidth = width & ~1; desiredHeight = height;
+}
 static NSCondition *certificateCondition;
 static NSInteger certificateDecision = -1;
 static BOOL writeAll(const void *data, size_t length) {
@@ -128,7 +138,28 @@ static UINT clipboardResponse(CliprdrClientContext *context, const CLIPRDR_FORMA
  text = [text stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\0"]];
  if (text) packet(3, [text dataUsingEncoding:NSUTF8StringEncoding]); return 0;
 }
+static UINT displayCaps(DispClientContext *context, UINT32 monitors, UINT32 factorA, UINT32 factorB) {
+ @synchronized(commands) { displayReady = monitors > 0; displayMaxArea = (UINT64)factorA * factorB; }
+ packet(6, [@"RDP dynamic resolution channel ready" dataUsingEncoding:NSUTF8StringEncoding]); return CHANNEL_RC_OK;
+}
+static void sendRDPResize(void) {
+ @synchronized(commands) {
+  if (!display || !displayReady || (sentWidth == desiredWidth && sentHeight == desiredHeight)) return;
+  if (displayMaxArea && (UINT64)desiredWidth * desiredHeight > displayMaxArea) return;
+  DISPLAY_CONTROL_MONITOR_LAYOUT layout = {0}; layout.Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
+  layout.Width = desiredWidth; layout.Height = desiredHeight;
+  layout.PhysicalWidth = MAX(10, desiredWidth * 254 / 960); layout.PhysicalHeight = MAX(10, desiredHeight * 254 / 960);
+  layout.DesktopScaleFactor = 100; layout.DeviceScaleFactor = 100;
+  if (display->SendMonitorLayout(display, 1, &layout) == CHANNEL_RC_OK) {
+   sentWidth = desiredWidth; sentHeight = desiredHeight;
+   packet(6, [[NSString stringWithFormat:@"RDP resize requested %ux%u", sentWidth, sentHeight] dataUsingEncoding:NSUTF8StringEncoding]);
+  }
+ }
+}
 static void channelConnected(void *context, const ChannelConnectedEventArgs *event) {
+ if (strcmp(event->name, DISP_DVC_CHANNEL_NAME) == 0) {
+  @synchronized(commands) { display = event->pInterface; display->DisplayControlCaps = displayCaps; }
+ }
  if (strcmp(event->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) {
   @synchronized(commands) { clip = event->pInterface; }
   clip->custom = context;
@@ -136,8 +167,12 @@ static void channelConnected(void *context, const ChannelConnectedEventArgs *eve
   clip->ServerFormatDataRequest = clipboardRequest; clip->ServerFormatDataResponse = clipboardResponse;
  }
 }
+static void channelDisconnected(void *context, const ChannelDisconnectedEventArgs *event) {
+ if (strcmp(event->name, DISP_DVC_CHANNEL_NAME) == 0) { @synchronized(commands) { display = NULL; displayReady = NO; } }
+}
 static BOOL preConnect(freerdp *rdp) {
  PubSub_SubscribeChannelConnected(rdp->context->pubSub, channelConnected);
+ PubSub_SubscribeChannelDisconnected(rdp->context->pubSub, channelDisconnected);
  return YES;
 }
 static BOOL loadChannels(freerdp *rdp) {
@@ -172,7 +207,10 @@ static void runRDP(void) {
  freerdp_settings_set_string(s, FreeRDP_Username, [configuration[@"user"] UTF8String]);
  freerdp_settings_set_string(s, FreeRDP_Password, [configuration[@"password"] UTF8String]);
  freerdp_settings_set_string(s, FreeRDP_Domain, [configuration[@"domain"] UTF8String]);
- freerdp_settings_set_uint32(s, FreeRDP_DesktopWidth, 1440); freerdp_settings_set_uint32(s, FreeRDP_DesktopHeight, 900);
+ rememberResize(configuration);
+ freerdp_settings_set_uint32(s, FreeRDP_DesktopWidth, desiredWidth); freerdp_settings_set_uint32(s, FreeRDP_DesktopHeight, desiredHeight);
+ freerdp_settings_set_bool(s, FreeRDP_SupportDisplayControl, TRUE);
+ freerdp_settings_set_bool(s, FreeRDP_DynamicResolutionUpdate, TRUE);
  freerdp_settings_set_uint32(s, FreeRDP_ColorDepth, 32);
  freerdp_settings_set_bool(s, FreeRDP_RedirectClipboard, [configuration[@"clipboard"] boolValue]);
  freerdp_settings_set_bool(s, FreeRDP_SoftwareGdi, TRUE);
@@ -197,7 +235,8 @@ static void runRDP(void) {
    @autoreleasepool {
     for (NSDictionary *item in takeInputs()) {
      NSString *type = item[@"type"];
-     if ([type isEqual:@"mouse"]) freerdp_input_send_mouse_event(rdp->context->input, [item[@"flags"] unsignedIntValue], [item[@"x"] unsignedIntValue], [item[@"y"] unsignedIntValue]);
+     if ([type isEqual:@"resize"]) rememberResize(item);
+     else if ([type isEqual:@"mouse"]) freerdp_input_send_mouse_event(rdp->context->input, [item[@"flags"] unsignedIntValue], [item[@"x"] unsignedIntValue], [item[@"y"] unsignedIntValue]);
      else if ([type isEqual:@"key"]) freerdp_input_send_keyboard_event_ex(rdp->context->input, [item[@"down"] boolValue], FALSE, [item[@"scan"] unsignedIntValue]);
      else if ([type isEqual:@"text"]) {
       NSString *text = item[@"text"]; for (NSUInteger i = 0; i < text.length; i++) { unichar ch = [text characterAtIndex:i]; freerdp_input_send_unicode_keyboard_event(rdp->context->input, 0, ch); freerdp_input_send_unicode_keyboard_event(rdp->context->input, KBD_FLAGS_RELEASE, ch); }
@@ -209,6 +248,7 @@ static void runRDP(void) {
       if (clipboardContext && ready) announceClipboard(clipboardContext);
      }
     }
+    sendRDPResize();
     HANDLE handles[64]; DWORD count = freerdp_get_event_handles(rdp->context, handles, 64);
     if (!count || WaitForMultipleObjects(count, handles, FALSE, 15) == WAIT_FAILED || !freerdp_check_event_handles(rdp->context)) break;
    }
@@ -249,7 +289,22 @@ static void vncClipboard(rfbClient *client, const char *text, int length) {
  NSString *string = [[NSString alloc] initWithBytes:text length:length encoding:NSISOLatin1StringEncoding]; if (string) packet(3, [string dataUsingEncoding:NSUTF8StringEncoding]);
 }
 static void vncClipboardUTF8(rfbClient *client, const char *text, int length) { if ([configuration[@"clipboard"] boolValue] && length >= 0 && length <= 1024*1024) packet(3, [NSData dataWithBytes:text length:length]); }
+static void sendVNCResize(rfbClient *client) {
+ // A received screen layout confirms ExtendedDesktopSize support. Preserve its screen ID.
+ if (!client->screen.width || !client->screen.height || client->requestedResize ||
+     (sentWidth == desiredWidth && sentHeight == desiredHeight)) return;
+ rfbSetDesktopSizeMsg message = {0}; rfbExtDesktopScreen screen = client->screen;
+ message.type = rfbSetDesktopSize; message.width = htons(desiredWidth); message.height = htons(desiredHeight); message.numberOfScreens = 1;
+ screen.x = screen.y = 0; screen.width = message.width; screen.height = message.height;
+ if (WriteToRFBServer(client, (char*)&message, sz_rfbSetDesktopSizeMsg) &&
+     WriteToRFBServer(client, (char*)&screen, sz_rfbExtDesktopScreen)) {
+  client->requestedResize = TRUE; sentWidth = desiredWidth; sentHeight = desiredHeight;
+  packet(6, [[NSString stringWithFormat:@"VNC resize requested %ux%u", sentWidth, sentHeight] dataUsingEncoding:NSUTF8StringEncoding]);
+  SendFramebufferUpdateRequest(client, 0, 0, client->width, client->height, FALSE);
+ }
+}
 static void runVNC(void) {
+ rememberResize(configuration);
  rfbClientErr = vncError;
  rfbClientLog = vncLog;
  rfbClient *client = rfbGetClient(8, 3, 4); if (!client) return;
@@ -267,7 +322,8 @@ static void runVNC(void) {
   @autoreleasepool {
    for (NSDictionary *item in takeInputs()) {
     NSString *type = item[@"type"];
-    if ([type isEqual:@"mouse"]) { buttons = [item[@"buttons"] intValue]; SendPointerEvent(client, [item[@"x"] intValue], [item[@"y"] intValue], buttons); }
+    if ([type isEqual:@"resize"]) rememberResize(item);
+    else if ([type isEqual:@"mouse"]) { buttons = [item[@"buttons"] intValue]; SendPointerEvent(client, [item[@"x"] intValue], [item[@"y"] intValue], buttons); }
     else if ([type isEqual:@"key"]) SendKeyEvent(client, [item[@"keysym"] unsignedIntValue], [item[@"down"] boolValue]);
     else if ([type isEqual:@"text"]) { NSString *text = item[@"text"]; for (NSUInteger i = 0; i < text.length; i++) { uint32_t ch = [text characterAtIndex:i]; if (ch > 255) ch |= 0x01000000; SendKeyEvent(client, ch, TRUE); SendKeyEvent(client, ch, FALSE); } }
     else if ([type isEqual:@"clipboard"] && [configuration[@"clipboard"] boolValue]) {
@@ -279,6 +335,7 @@ static void runVNC(void) {
      }
     }
    }
+   sendVNCResize(client);
    // Read-ahead can hold the next clipboard/update message even when select reports no new socket bytes.
    BOOL buffered = client->buffered || (client->tlsSession && SSL_pending((SSL*)client->tlsSession) > 0);
    int ready = buffered ? 1 : WaitForMessage(client, 15000); if (ready < 0 || (ready && !HandleRFBServerMessage(client))) break;

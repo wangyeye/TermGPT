@@ -47,13 +47,27 @@ final class RemoteDesktop: ObservableObject {
     private var log: DesktopLog?
     private var certificateAlert: NSAlert?
     private var receivedFrame = false
+    private var resizeWork: DispatchWorkItem?
+    private var lastResize: DesktopResolution?
     private let frameLock = NSLock()
     private var pendingFrame: Data?
     private var frameScheduled = false
     var active = false {
-        didSet { if active && !oldValue { syncLocalClipboard(force: true) } }
+        didSet { if active && !oldValue { syncLocalClipboard(force: true); scheduleResize() } }
     }
-    init(bookmark: Bookmark) { self.bookmark = bookmark; view.kind = bookmark.kind; view.send = { [weak self] item in self?.send(item) }; view.firstFrameDrawn = { [weak self] in self?.log?.record("first_frame_drawn") } }
+    init(bookmark: Bookmark) { self.bookmark = bookmark; view.kind = bookmark.kind; view.send = { [weak self] item in self?.send(item) }; view.firstFrameDrawn = { [weak self] in self?.log?.record("first_frame_drawn") }; view.sizeChanged = { [weak self] in self?.scheduleResize() } }
+    private func scheduleResize() {
+        resizeWork?.cancel()
+        guard active, !closed else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.active, self.connected, !self.closed,
+                  let size = DesktopResolution(size: self.view.bounds.size), size != self.lastResize else { return }
+            self.lastResize = size
+            self.send(["type": "resize", "width": size.width, "height": size.height])
+            self.log?.record("resize_requested", "width=\(size.width) height=\(size.height)")
+        }
+        resizeWork = work; DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
     func start(helperURL: URL? = nil) throws {
         let path = helperURL ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/TermGPTRemoteDesktop")
         guard FileManager.default.isExecutableFile(atPath: path.path) else { throw AppError.message("缺少远程桌面组件，请使用完整安装包") }
@@ -65,7 +79,8 @@ final class RemoteDesktop: ObservableObject {
         task.executableURL = path; task.standardInput = stdin; task.standardOutput = stdout; task.standardError = FileHandle.nullDevice
         task.environment = Self.helperEnvironment
         try task.run(); process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
-        send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard])
+        let size = DesktopResolution(size: view.bounds.size) ?? DesktopResolution(size: NSSize(width: 720, height: 600))!
+        send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard, "width": size.width, "height": size.height])
         let handle = stdout.fileHandleForReading
         let logger = log
         task.terminationHandler = { task in logger?.record("helper_exit", "code=\(task.terminationStatus) reason=\(task.terminationReason.rawValue)") }
@@ -120,7 +135,7 @@ final class RemoteDesktop: ObservableObject {
         case 2:
             let message = String(decoding: packet.data, as: UTF8.self)
             log?.record("status", message)
-            if message == "connected" { connected = true; status = L("已连接"); syncLocalClipboard(force: true) }
+            if message == "connected" { connected = true; status = L("已连接"); syncLocalClipboard(force: true); scheduleResize() }
             else if message == "connecting" { status = L("连接中…") }
             else if message == "disconnected" { connected = false; status = L("已断开") }
             else {
@@ -183,6 +198,7 @@ final class RemoteDesktop: ObservableObject {
         clipboardTimer?.invalidate(); changed?()
     }
     func close() {
+        resizeWork?.cancel(); resizeWork = nil
         guard !closed else { return }; send(["type": "stop"]); closed = true
         log?.record("close", "user closed tab")
         if let alert = certificateAlert, let parent = alert.window.sheetParent { parent.endSheet(alert.window, returnCode: .abort) }
@@ -191,7 +207,7 @@ final class RemoteDesktop: ObservableObject {
         let task = process, handle = input
         writes.async { try? handle?.close(); if task?.isRunning == true { task?.terminate() } }
         // The reader owns stdout until EOF; never close it during a blocking read.
-        output = nil; input = nil; certificate = nil; view.send = nil; changed = nil
+        output = nil; input = nil; certificate = nil; view.send = nil; view.sizeChanged = nil; changed = nil
     }
     deinit { clipboardTimer?.invalidate(); if process?.isRunning == true { process?.terminate() } }
 }
@@ -260,6 +276,9 @@ struct DesktopPane: View {
 }
 /// Scales a framebuffer with correct pointer mapping; hardware keys preserve remote shortcuts.
 final class DesktopCanvas: NSView {
+    var sizeChanged: (() -> Void)?
+    override func setFrameSize(_ newSize: NSSize) { super.setFrameSize(newSize); sizeChanged?() }
+    override func viewDidEndLiveResize() { super.viewDidEndLiveResize(); sizeChanged?() }
     var kind: ConnectionKind = .rdp
     var image: CGImage? { didSet { presentFrame() } }
     override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true; presentFrame() }
