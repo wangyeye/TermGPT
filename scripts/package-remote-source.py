@@ -5,7 +5,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parent.parent
 if not (root/'Vendor/RemoteDesktop/dependencies.json').is_file():raise SystemExit('Missing dependency manifest')
 subprocess.run([sys.executable,str(root/'scripts/fetch-remote-deps.py')],check=True)
-paths=[Path('Native/RemoteDesktop'),Path('Vendor/RemoteDesktop'),Path('scripts/build-remote-desktop.sh'),Path('scripts/fetch-remote-deps.py')]
+paths=[Path('LICENSE'),Path('Native/RemoteDesktop'),Path('Vendor/RemoteDesktop'),Path('scripts/build-remote-desktop.sh'),Path('scripts/fetch-remote-deps.py')]
 manifest=json.loads((root/'Vendor/RemoteDesktop/dependencies.json').read_text())
 output=root/'dist/TermGPT-RemoteDesktop-source.tar.gz';output.parent.mkdir(exist_ok=True)
 with tarfile.open(output,'w:gz') as bundle:
