@@ -53,6 +53,8 @@ python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application
 
 Cleanup removes only that exact loopback fixture credential and does not print other entries.
 
+The same page also includes a username/password form and a noVNC-style prompt. Use `fixture` / `fixture`, accept Save and Autofill, then reopen the bookmark to verify prefilled fields. Declining must leave credentials unsaved; autofill must not submit the form. Cleanup above also removes these exact synthetic entries.
+
 ## Script reference
 
 | Script in `scripts/` | Purpose and usage |

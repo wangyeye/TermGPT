@@ -47,6 +47,11 @@ if __name__ == '__main__':
         data = json.loads(path.read_text())
         passwords = data.get('webPasswords', {})
         for key, value in list(passwords.items()):
+            origin = f'http://127.0.0.1:{args.port}'
+            if (key == 'form:' + origin and value == {'username': 'fixture', 'password': 'fixture'}
+                    or key == 'prompt:' + origin + ':Password Required:' and value == {'username': '', 'password': 'fixture'}):
+                del passwords[key]
+                continue
             try:
                 scope = json.loads(key)
             except (ValueError, TypeError):

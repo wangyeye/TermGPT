@@ -53,6 +53,8 @@ python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application
 
 只清理该回环测试的精确模拟凭据，不打印其他条目。
 
+同一页面包含用户名/密码表单和 noVNC 风格密码框。使用 `fixture` / `fixture`，选择保存并自动填充，然后重新打开书签检查预填；不保存时不能写入凭据，自动填充不能提交表单。上述清理也移除这些精确模拟条目。
+
 ## 脚本索引
 
 | `scripts/` 下脚本 | 作用与用法 |
