@@ -462,10 +462,11 @@ struct BookmarkRow: View {
                     Text(bookmark.kind.rawValue.uppercased() + " · " + bookmark.host).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(7).contentShape(Rectangle())
             }.buttonStyle(.plain)
+            Image(systemName: "line.3.horizontal").font(.system(size: 10)).foregroundStyle(.secondary).frame(width: 18, height: 30).contentShape(Rectangle()).help(L("拖动排序"))
+                .onDrag { workspace.draggingBookmark = bookmark.id; workspace.draggingFolder = nil; return BookmarkDrag.provider(bookmark.id, type: BookmarkDrag.bookmarkType) }
             Menu { actions } label: { Image(systemName: "ellipsis") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22).padding(7).accessibilityLabel(L("书签菜单：%@", bookmark.name))
         }.contextMenu { actions }
-            .onDrag { workspace.draggingBookmark = bookmark.id; workspace.draggingFolder = nil; return BookmarkDrag.provider(bookmark.id, type: BookmarkDrag.bookmarkType) }
             .onDrop(of: [BookmarkDrag.bookmarkType], delegate: BookmarkRowDrop(target: bookmark.id, workspace: workspace))
     }
     @ViewBuilder private var actions: some View {
@@ -487,6 +488,7 @@ struct BookmarkFolderSection: View {
     @State private var expanded = true
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 0) {
             Button { expanded.toggle() } label: {
                 HStack(spacing: 6) {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold)).frame(width: 12)
@@ -495,7 +497,9 @@ struct BookmarkFolderSection: View {
                 }.contentShape(Rectangle()).padding(.vertical, 8)
             }.buttonStyle(.plain)
                 .accessibilityValue(expanded ? L("已展开") : L("已折叠"))
+            Image(systemName: "line.3.horizontal").font(.system(size: 10)).foregroundStyle(.secondary).frame(width: 24, height: 30).contentShape(Rectangle()).help(L("拖动排序"))
                 .onDrag { workspace.draggingFolder = folder.id; workspace.draggingBookmark = nil; return BookmarkDrag.provider(folder.id, type: BookmarkDrag.folderType) }
+            }
                 .onDrop(of: [BookmarkDrag.folderType, BookmarkDrag.bookmarkType], delegate: BookmarkFolderDrop(target: folder.id, workspace: workspace))
                 .contextMenu {
                     Button(L("管理文件夹")) { workspace.foldersShown = true }
