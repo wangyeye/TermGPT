@@ -22,7 +22,9 @@ enum TermGPTIcon {
             CommandGroup(replacing: .appSettings) { Button(L("设置…")) { workspace.settingsShown = true }.keyboardShortcut(",") }
             CommandMenu(L("终端")) {
                 Button(L("快速打开")) { QuickOpenWindow.show(workspace) }.keyboardShortcut("p")
-                Button(L("终端历史与搜索")) { workspace.historyShown = true }.keyboardShortcut("f")
+                Button(L("搜索终端内容")) { workspace.findTerminal() }.keyboardShortcut("f").disabled(workspace.activeSession?.isTerminal != true || workspace.activeSession?.awaitingRestore == true)
+                Button(L("终端历史与搜索")) { workspace.historyShown = true }
+                Button(L("常用命令库")) { workspace.commandLibraryShown = true }.keyboardShortcut("k", modifiers: [.command, .shift])
                 Button(L("导出会话")) { workspace.export() }
             }
             CommandGroup(after: .sidebar) {
@@ -95,6 +97,8 @@ struct MainView: View {
         .sheet(isPresented: $workspace.bookmarkShown) { BookmarkView(workspace: workspace, existing: workspace.editingBookmark) }
         .sheet(isPresented: $workspace.foldersShown) { FolderManagerView(workspace: workspace) }
         .sheet(isPresented: $workspace.historyShown) { HistoryView(workspace: workspace) }
+        .sheet(isPresented: $workspace.commandLibraryShown) { CommandLibraryView(workspace: workspace) }
+        .sheet(item: $workspace.commandDraft) { item in CommandEditor(command: item) { workspace.saveCommand($0) } }
         .sheet(item: $workspace.proposal) { p in RunView(workspace: workspace, proposal: p) }
         .alert("TermGPT", isPresented: Binding(get: { workspace.error != nil }, set: { if !$0 { workspace.error = nil } })) { Button(L("好")) { workspace.error = nil } } message: { Text(L(workspace.error ?? "")) }
         .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true); workspace.applyTerminalTheme(light: colorScheme == .light) }
@@ -197,7 +201,7 @@ struct MainView: View {
             if let session = workspace.activeSession {
                 ZStack {
                     ForEach(workspace.sessions) { pane in
-                        SessionContent(session: pane, preferences: workspace.preferences, active: workspace.active == pane.id)
+                        SessionContent(session: pane, preferences: workspace.preferences, active: workspace.active == pane.id, restore: { workspace.restore(pane) })
                             .opacity(workspace.active == pane.id ? 1 : 0)
                             .allowsHitTesting(workspace.active == pane.id)
                             .accessibilityHidden(workspace.active != pane.id)
@@ -319,6 +323,7 @@ struct MessageView: View {
                             }
                             HStack {
                                 if block.isShellCommand {
+                                    Button(L("收藏")) { workspace.commandDraft = SavedCommand(name: String(code.prefix(60)), command: code) }
                                     Text(Safety.highRisk(code) ? L("需谨慎确认") : L("LOW")).font(.system(size: 10, weight: .bold)).foregroundStyle(Safety.highRisk(code) ? .orange : .green)
                                 }
                                 Spacer()
@@ -397,6 +402,8 @@ struct SettingsView: View {
                         Toggle(L("显示网页地址栏"), isOn: $preferences.showWebAddressBar)
                         Text(L("默认隐藏网页导航栏，关闭后仅显示网页主体。保存后立即生效。" )).font(.caption).foregroundStyle(.secondary)
                         Toggle(L("保存聊天到本机"), isOn: $preferences.saveMemory)
+                        Toggle(L("启动时恢复工作区"), isOn: $preferences.restoreWorkspace)
+                        Text(L("恢复标签顺序和当前标签，点击恢复连接后才登录；不保存终端输出。" )).font(.caption).foregroundStyle(.secondary)
                         Toggle(L("发送前自动脱敏"), isOn: $preferences.redactBeforeSending)
                         Text(preferences.redactBeforeSending ? L("自动替换消息、历史聊天及终端上下文中的常见敏感字段，不弹出确认框。") : L("按原文发送消息、历史聊天及终端上下文；其中的密码、Token 或私钥也会发送给当前 AI Provider。"))
                             .font(.caption).foregroundStyle(.secondary)
@@ -718,14 +725,18 @@ struct SessionContent: View {
     @ObservedObject var session: TerminalSession
     let preferences: Preferences
     let active: Bool
+    let restore: () -> Void
     var body: some View {
         Group {
-            if let browser = session.web { WebPane(browser: browser, showAddressBar: preferences.showWebAddressBar) }
+            if session.awaitingRestore {
+                VStack(spacing: 14) { Text(session.targetLabel).textSelection(.enabled); Text(L("工作区已恢复，点击后连接。" )).foregroundStyle(.secondary); Button(L("恢复连接"), action: restore).buttonStyle(.borderedProminent) }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            else if let browser = session.web { WebPane(browser: browser, showAddressBar: preferences.showWebAddressBar) }
             else if let desktop = session.desktop {
                 DesktopPane(desktop: desktop, active: active, reconnect: {
                     do { try session.reconnect(preferences) } catch { session.status = error.localizedDescription }
                 })
-            } else { TerminalHost(session: session) }
+            } else { VStack(spacing: 0) { if session.searchShown { TerminalFindBar(session: session); Divider() }; TerminalHost(session: session) } }
         }
     }
 }

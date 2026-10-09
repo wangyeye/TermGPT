@@ -104,10 +104,11 @@ struct Preferences: Codable {
     var showBookmarks = true
     var showChat = true
     var showWebAddressBar = false
+    var restoreWorkspace = true
     var saveMemory = true
     var redactBeforeSending = true
     init() {}
-    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, language, showBookmarks, showChat, showWebAddressBar, saveMemory, redactBeforeSending }
+    enum CodingKeys: String, CodingKey { case provider, chatGPTModel, endpoint, model, shell, fontSize, lightTerminal, interfaceTheme, language, showBookmarks, showChat, showWebAddressBar, restoreWorkspace, saveMemory, redactBeforeSending }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         endpoint = try c.decodeIfPresent(String.self, forKey: .endpoint) ?? endpoint
@@ -122,6 +123,7 @@ struct Preferences: Codable {
         showBookmarks = try c.decodeIfPresent(Bool.self, forKey: .showBookmarks) ?? true
         showChat = try c.decodeIfPresent(Bool.self, forKey: .showChat) ?? true
         showWebAddressBar = try c.decodeIfPresent(Bool.self, forKey: .showWebAddressBar) ?? false
+        restoreWorkspace = try c.decodeIfPresent(Bool.self, forKey: .restoreWorkspace) ?? true
         saveMemory = try c.decodeIfPresent(Bool.self, forKey: .saveMemory) ?? saveMemory
         redactBeforeSending = try c.decodeIfPresent(Bool.self, forKey: .redactBeforeSending) ?? true
     }
@@ -160,6 +162,8 @@ enum Safety {
     }
 }
 struct SavedState: Codable {
+    var savedCommands: [SavedCommand]? = nil
+    var restoredWorkspace: RestoredWorkspace? = nil
     var recentBookmarkIDs: [UUID]? = nil
     var bookmarks: [Bookmark]
     var folders: [BookmarkFolder]?

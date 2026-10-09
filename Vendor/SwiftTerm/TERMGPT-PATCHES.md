@@ -9,3 +9,6 @@ The vendored SwiftTerm code retains its upstream MIT license. The macOS terminal
 - Preserve mouse reporting and alternate-screen behavior for terminal applications.
 
 Regression coverage lives in `Tests/TermGPTTests/TerminalSelectionScrollTests.swift`; run `scripts/test-isolated.sh` after checking the documented macOS build environment.
+# Terminal search
+
+`Mac/TerminalSearch.swift` adds buffer search and reveal APIs. UTF-16 regex offsets map back to terminal cells, preserving wide-character selection. Search is bounded to 10,000 matches and physical rows; reveal clamps scroll position to the last valid viewport.

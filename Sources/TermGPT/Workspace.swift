@@ -4,7 +4,7 @@ import SwiftTerm
 
 final class WorkTerminal: LocalProcessTerminalView {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "p" { return false }
+        if event.modifierFlags.contains(.command), ["p", "f"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "") { return false }
         return super.performKeyEquivalent(with: event)
     }
     var ask: ((String, String) -> Void)?
@@ -29,7 +29,7 @@ final class WorkTerminal: LocalProcessTerminalView {
     @objc func askSelected(_ item: NSMenuItem) { if let text = getSelection(), !text.isEmpty { ask?(L(item.representedObject as? String ?? item.title), text) } }
 }
 final class TerminalSession: ObservableObject, Identifiable, LocalProcessTerminalViewDelegate {
-    let id = UUID()
+    let id: UUID
     let name: String
     let bookmark: Bookmark?
     @Published var desktop: RemoteDesktop?
@@ -41,6 +41,8 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
     @Published var running = false
     @Published var transferStatus = ""
     @Published var transferring = false
+    @Published var searchShown = false
+    @Published var awaitingRestore = false
     var started = false
     @Published var connecting = false
     @Published var autoReconnect = false { didSet { if !autoReconnect { reconnectWork?.cancel(); reconnectWork = nil } } }
@@ -70,7 +72,7 @@ final class TerminalSession: ObservableObject, Identifiable, LocalProcessTermina
         let endpoint = (bookmark.user.isEmpty ? "" : bookmark.user + "@") + bookmark.host + (bookmark.port == 22 ? "" : ":\(bookmark.port)")
         return "\(name) · \(endpoint)"
     }
-    init(name: String, bookmark: Bookmark? = nil) { self.name = name; self.bookmark = bookmark; view.processDelegate = self; view.getTerminal().changeHistorySize(10000) }
+    init(name: String, bookmark: Bookmark? = nil, id: UUID = UUID()) { self.id = id; self.name = name; self.bookmark = bookmark; view.processDelegate = self; view.getTerminal().changeHistorySize(10000) }
     func start(_ preferences: Preferences) throws {
         guard !started else { return }; lastPreferences = preferences
         if let bookmark, bookmark.kind == .web {
@@ -145,9 +147,18 @@ struct RunProposal: Identifiable {
     let high: Bool
 }
 @MainActor final class Workspace: ObservableObject {
+    private var readyToPersist = false
+    @Published var savedCommands: [SavedCommand] = []
+    @Published var commandLibraryShown = false
+    @Published var commandDraft: SavedCommand?
+    func saveCommand(_ item: SavedCommand) {
+        if let index = savedCommands.firstIndex(where: { $0.id == item.id }) { savedCommands[index] = item }
+        else { savedCommands.append(item) }; persist()
+    }
+    func findTerminal() { if let session = activeSession, session.isTerminal, !session.awaitingRestore { session.searchShown = true } }
     let chatGPT = ChatGPTAccount()
-    @Published var sessions: [TerminalSession] = []
-    @Published var active: UUID?
+    @Published var sessions: [TerminalSession] = [] { didSet { if readyToPersist { persist() } } }
+    @Published var active: UUID? { didSet { if readyToPersist { persist() } } }
     @Published var locked: UUID?
     @Published var contextMode = ContextMode.auto
     @Published var bookmarks: [Bookmark] = []
@@ -183,10 +194,21 @@ struct RunProposal: Identifiable {
     var contextSession: TerminalSession? { sessions.first { $0.id == (locked ?? active) && $0.isTerminal } }
     var currentChat: Chat { chats.first { $0.id == chatID } ?? chats[0] }
     init() {
-        if let state = DiskStore.load() { bookmarks = state.bookmarks; recentBookmarkIDs = BookmarkSearch.recent(state.recentBookmarkIDs ?? [], bookmarks: state.bookmarks).map(\.id); folders = state.folders ?? []; preferences = state.preferences; if !state.chats.isEmpty { chats = state.chats } }
+        let state = DiskStore.load()
+        if let state { bookmarks = state.bookmarks; recentBookmarkIDs = BookmarkSearch.recent(state.recentBookmarkIDs ?? [], bookmarks: state.bookmarks).map(\.id); folders = state.folders ?? []; preferences = state.preferences; savedCommands = state.savedCommands ?? []; if !state.chats.isEmpty { chats = state.chats } }
         Localization.shared.selection = preferences.language
         chatID = chats.first?.id
-        newLocal()
+        if preferences.restoreWorkspace, let restoration = state?.restoredWorkspace {
+            var seen = Set<UUID>()
+            for tab in restoration.tabs where seen.insert(tab.id).inserted {
+                let bookmark = bookmarks.first { $0.id == tab.bookmarkID }
+                if tab.bookmarkID != nil && bookmark == nil { continue }
+                let session = TerminalSession(name: bookmark?.name ?? tab.name, bookmark: bookmark, id: tab.id)
+                session.awaitingRestore = true; configure(session); sessions.append(session)
+            }
+            active = sessions.contains(where: { $0.id == restoration.active }) ? restoration.active : sessions.first?.id
+        } else { newLocal() }
+        readyToPersist = true
     }
     func applyTerminalTheme(light: Bool) {
         preferences.lightTerminal = light
@@ -197,7 +219,7 @@ struct RunProposal: Identifiable {
         persist()
     }
     func persist() {
-        do { try DiskStore.save(SavedState(recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        do { try DiskStore.save(SavedState(savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
     }
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()
@@ -258,13 +280,20 @@ struct RunProposal: Identifiable {
     }
     func open(name: String, bookmark: Bookmark? = nil) {
         let session = TerminalSession(name: name, bookmark: bookmark)
+        configure(session)
+        do { try session.start(preferences); sessions.append(session); active = session.id; if let bookmark { recordRecent(bookmark.id) } } catch { self.error = error.localizedDescription }
+    }
+    private func configure(_ session: TerminalSession) {
         session.view.ask = { [weak self, weak session] action, text in
             guard let self, let session else { return }
             self.locked = session.id; self.contextMode = .selected; self.selectedContext = text
             self.input = L("%@：请分析选中的终端文本。", action)
             self.notice = "已关联所选文本，点击发送后提交给 AI"
         }
-        do { try session.start(preferences); sessions.append(session); active = session.id; if let bookmark { recordRecent(bookmark.id) } } catch { self.error = error.localizedDescription }
+    }
+    func restore(_ session: TerminalSession) {
+        do { try session.start(preferences); session.awaitingRestore = false; if let bookmark = session.bookmark { recordRecent(bookmark.id) } }
+        catch { self.error = error.localizedDescription }
     }
     func newLocal() { open(name: sessions.contains { $0.bookmark == nil } ? "Local \(sessions.count + 1)" : "Local") }
     func close(_ id: UUID) {
