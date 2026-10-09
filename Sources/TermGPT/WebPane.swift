@@ -1,5 +1,7 @@
 import SwiftUI
 import WebKit
+import CryptoKit
+import Security
 
 final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
     let view: WKWebView = {
@@ -44,6 +46,7 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
     var changed: (() -> Void)?
     private var observations: [NSKeyValueObservation] = []
     private var closed = false
+    private var trustedCertificates: [String: String] = [:]
     override init() {
         super.init()
         view.navigationDelegate = self; view.uiDelegate = self
@@ -74,6 +77,35 @@ final class WebSession: NSObject, ObservableObject, WKNavigationDelegate, WKUIDe
                  completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         guard !closed else { completionHandler(.cancelAuthenticationChallenge, nil); return }
         let method = challenge.protectionSpace.authenticationMethod
+        if method == NSURLAuthenticationMethodServerTrust, let trust = challenge.protectionSpace.serverTrust {
+            if SecTrustEvaluateWithError(trust, nil) {
+                completionHandler(.performDefaultHandling, nil); return
+            }
+            guard let certificate = SecTrustGetCertificateAtIndex(trust, 0) else {
+                completionHandler(.cancelAuthenticationChallenge, nil); return
+            }
+            let fingerprint = SHA256.hash(data: SecCertificateCopyData(certificate) as Data).map { String(format: "%02x", $0) }.joined(separator: ":")
+            let host = challenge.protectionSpace.host.lowercased()
+            let key = "https://\(host):\(challenge.protectionSpace.port)"
+            if trustedCertificates[key] == fingerprint || (try? CredentialStore.shared.read().webCertificates[key]) == fingerprint {
+                completionHandler(.useCredential, URLCredential(trust: trust)); return
+            }
+            let alert = NSAlert()
+            alert.messageText = L("验证网页服务器证书")
+            alert.informativeText = L("无法验证服务器证书。请核对服务器身份。始终信任会保存此主机和端口的证书指纹，证书变更时重新询问。")
+                + "\n\n" + key + "\n" + (SecCertificateCopySubjectSummary(certificate) as String? ?? "") + "\nSHA-256: " + fingerprint
+            alert.addButton(withTitle: L("仅本次信任")); alert.addButton(withTitle: L("始终信任")); alert.addButton(withTitle: L("取消"))
+            let result = alert.runModal()
+            guard !closed, result == .alertFirstButtonReturn || result == .alertSecondButtonReturn else {
+                completionHandler(.cancelAuthenticationChallenge, nil); return
+            }
+            trustedCertificates[key] = fingerprint
+            if result == .alertSecondButtonReturn {
+                do { try CredentialStore.shared.update { $0.webCertificates[key] = fingerprint } }
+                catch { self.error = L("保存证书信任失败") }
+            }
+            completionHandler(.useCredential, URLCredential(trust: trust)); return
+        }
         guard method == NSURLAuthenticationMethodHTTPBasic || method == NSURLAuthenticationMethodHTTPDigest else {
             completionHandler(.performDefaultHandling, nil); return
         }

@@ -19,6 +19,8 @@ final class Localization: ObservableObject {
         "上移": "Move Up",
         "书签已打开": "Bookmark Already Open",
         "网页身份验证": "Website Authentication",
+        "验证网页服务器证书": "Verify Website Certificate",
+        "保存证书信任失败": "Could not save certificate trust",
         "保存密码": "Save Password",
         "保存网页密码失败": "Could not save website password",
         "用户名或密码不正确，请重试": "Incorrect username or password. Try again.",

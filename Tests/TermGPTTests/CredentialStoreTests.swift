@@ -13,11 +13,13 @@ final class CredentialStoreTests: XCTestCase {
         try store.update { $0.chatGPT = vault; $0.apiKey = "fixture-api-not-real" }
         try SSHPasswordStore.write("fixture-password-not-real", id: id, store: store)
         try store.update { $0.webPasswords["fixture-origin"] = WebCredential(username: "fixture", password: "fixture-web-not-real") }
+        try store.update { $0.webCertificates["https://fixture.invalid:443"] = "fixture-fingerprint" }
         let persisted = try store.read()
         XCTAssertEqual(persisted.chatGPT?.selected, "fixture-client")
         XCTAssertEqual(persisted.chatGPT?.registrations.first?.accessToken, "fixture-token-not-real")
         XCTAssertEqual(persisted.apiKey, "fixture-api-not-real")
         XCTAssertEqual(persisted.webPasswords["fixture-origin"]?.password, "fixture-web-not-real")
+        XCTAssertEqual(persisted.webCertificates["https://fixture.invalid:443"], "fixture-fingerprint")
         let file = try FileManager.default.attributesOfItem(atPath: store.url.path)
         let folder = try FileManager.default.attributesOfItem(atPath: directory.path)
         XCTAssertEqual((file[.posixPermissions] as? NSNumber)?.intValue, 0o600)
@@ -44,6 +46,7 @@ final class CredentialStoreTests: XCTestCase {
         let partial = try JSONDecoder().decode(CredentialConfiguration.self, from: Data("{}".utf8))
         XCTAssertEqual(partial.apiKey, ""); XCTAssertTrue(partial.sshPasswords.isEmpty)
         XCTAssertTrue(partial.webPasswords.isEmpty)
+        XCTAssertTrue(partial.webCertificates.isEmpty)
         XCTAssertThrowsError(try JSONDecoder().decode(CredentialConfiguration.self, from: Data(#"{"schemaVersion":99}"#.utf8)))
     }
 }

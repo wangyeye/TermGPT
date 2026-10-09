@@ -11,8 +11,9 @@ struct CredentialConfiguration: Codable {
     var sshPasswords: [String: String] = [:]
     var rdpCertificates: [String: RDPCertificatePin] = [:]
     var webPasswords: [String: WebCredential] = [:]
+    var webCertificates: [String: String] = [:]
     init() {}
-    enum CodingKeys: String, CodingKey { case schemaVersion, chatGPT, apiKey, sshPasswords, rdpCertificates, webPasswords }
+    enum CodingKeys: String, CodingKey { case schemaVersion, chatGPT, apiKey, sshPasswords, rdpCertificates, webPasswords, webCertificates }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
@@ -22,6 +23,7 @@ struct CredentialConfiguration: Codable {
         sshPasswords = try c.decodeIfPresent([String: String].self, forKey: .sshPasswords) ?? [:]
         rdpCertificates = try c.decodeIfPresent([String: RDPCertificatePin].self, forKey: .rdpCertificates) ?? [:]
         webPasswords = try c.decodeIfPresent([String: WebCredential].self, forKey: .webPasswords) ?? [:]
+        webCertificates = try c.decodeIfPresent([String: String].self, forKey: .webCertificates) ?? [:]
     }
 }
 final class CredentialStore: @unchecked Sendable {
