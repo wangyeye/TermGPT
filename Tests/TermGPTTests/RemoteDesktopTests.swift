@@ -71,8 +71,13 @@ final class RemoteDesktopTests: XCTestCase {
         let image = DesktopFrame.decode(frame)
         XCTAssertEqual(image?.width, 1); XCTAssertEqual(image?.height, 1)
         let canvas = DesktopCanvas(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
-        canvas.needsDisplay = false; canvas.image = image
-        XCTAssertTrue(canvas.needsDisplay)
+        let window = NSWindow(contentRect: canvas.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = canvas; window.orderFront(nil)
+        var drawnWithoutInput = false
+        canvas.firstFrameDrawn = { drawnWithoutInput = true }
+        canvas.image = image
+        XCTAssertTrue(drawnWithoutInput)
+        window.orderOut(nil)
         XCTAssertNil(DesktopFrame.decode(Data(frame.dropLast())))
         XCTAssertNil(DesktopFrame.decode(Data([0,0,32,0,0,0,0,1])))
         XCTAssertEqual(DesktopKeys.keys[117]?.0, 0x153)
