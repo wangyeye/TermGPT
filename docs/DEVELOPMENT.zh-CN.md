@@ -103,3 +103,5 @@ python3 scripts/webview-fixture.py --clear-saved-auth "$HOME/Library/Application
 - `Vendor/lrzsz`、`Vendor/RemoteDesktop`、`Native`：独立传输/桌面组件、许可证和构建定义。
 
 协议限制、依赖许可和模拟验证详见[桌面组件说明](../Vendor/RemoteDesktop/README.md)。真实主机诊断与合成测试不同；自动检查不代表所有账户、远端或实体 Intel Mac 已验证。
+
+访问 `/legacy` 验证旧式 `input type="button"` 登录按钮、带空格的中文登录文字和隐藏的改密字段。保存后重新打开应只填入可见登录字段，不自动点击登录。

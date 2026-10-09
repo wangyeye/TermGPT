@@ -41,8 +41,9 @@ final class WebPasswordAutofill: NSObject, WKScriptMessageHandlerWithReply {
       };
       document.addEventListener('submit', remember, true);
       document.addEventListener('click', event => {
-        const button = event.target.closest?.('button, input[type="submit"], [role="button"]');
-        if (button && (button.type === 'submit' || /login|log in|sign in|登录|登入/i.test(button.textContent + button.value))) remember(event);
+        const button = event.target.closest?.('button, input[type="submit"], input[type="button"], input[type="image"], [role="button"]');
+        const label = button && [button.textContent, button.value, button.id, button.name, button.getAttribute('aria-label')].join('').replace(/\\s+/g, '');
+        if (button && (button.type === 'submit' || /login|signin|登录|登入|登陆/i.test(label))) remember(event);
       }, true);
       document.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target.matches?.('input')) remember(event); }, true);
       new MutationObserver(fill).observe(document, {subtree:true, childList:true});

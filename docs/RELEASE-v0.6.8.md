@@ -1,7 +1,7 @@
 TermGPT v0.6.8 adds browser-tab Force Reload and improves embedded web login and xrdp compatibility.
 
 - Right-click a WEB tab → **Force Reload** to reload from the server, including when the address bar is hidden.
-- Website login forms offer **Save and Autofill**; saved credentials fill the matching website origin without submitting the form. Dynamic forms and JavaScript password prompts, including noVNC, are supported.
+- Website login forms offer **Save and Autofill**; saved credentials fill the matching website origin without submitting the form. Dynamic forms, legacy modem login buttons and JavaScript password prompts, including noVNC, are supported.
 - VNC/RDP desktop content uses the full pane; connection actions are available in the tab context menu.
 - Fix xrdp disconnections during automatic resolution changes by handling reactivation updates and resizing bitmap decoder capacity.
 - Add local-network usage text and a documented RDP diagnostic script.
@@ -15,7 +15,7 @@ Packages use ad-hoc signing and are not notarized. Both architecture packages pa
 此版本新增浏览器标签右键“强制刷新”，改善网页登录与 xrdp 兼容性。
 
 - WEB 标签右键选择**强制刷新**，地址栏隐藏时也可使用。
-- 网站登录表单可选择**保存并自动填充**；只对匹配的网站自动填入，不自动提交。支持动态表单及 JavaScript 密码弹窗（包括 noVNC）。
+- 网站登录表单可选择**保存并自动填充**；只对匹配的网站自动填入，不自动提交。支持动态表单、旧式光猫登录按钮及 JavaScript 密码弹窗（包括 noVNC）。
 - 移除 VNC/RDP 顶部状态栏，相关操作放入标签右键菜单。
 - 修复自动调整分辨率时 xrdp 断开的问题，同时同步画面解码器尺寸。
 - 增加本地网络用途说明和 RDP 诊断脚本使用文档。

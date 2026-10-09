@@ -18,6 +18,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         page = 'Second page' if self.path == '/second' else 'TermGPT WebView fixture'
         body = f'<!doctype html><html><head><title>{page}</title></head><body><h1>{page}</h1><input placeholder="Spelling test"><a href="/auth">Basic Auth test</a><a href="/second">Next page</a><a href="/" target="_blank">Open in browser tab</a><form action="/second" method="post"><input name="username" autocomplete="username" placeholder="Username"><input type="password" name="password" autocomplete="current-password" placeholder="Password"><button type="submit">Login</button></form><button onclick="prompt(\'Password Required:\')">noVNC prompt test</button></body></html>'.encode()
+        if self.path == '/legacy':
+            body = '''<!doctype html><html><head><title>Legacy login fixture</title></head><body>
+            <h1>Legacy login fixture</h1><div style="display:none"><input type="password" name="old_password"><input type="password" name="new_password"></div>
+            <input type="text" id="txt_Username" placeholder="Username"><input type="password" id="txt_Password" autocomplete="off" placeholder="Password">
+            <input type="button" id="loginbutton" value="登  录" onclick="document.getElementById('result').textContent='Synthetic login clicked'">
+            <p id="result">Not submitted</p></body></html>'''.encode()
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))

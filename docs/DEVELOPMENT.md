@@ -103,3 +103,5 @@ For an authenticated resize check, explicitly add `--saved-bookmark BOOKMARK_UUI
 - `Vendor/lrzsz`, `Vendor/RemoteDesktop`, `Native`: isolated transfer/desktop engines, notices and build definitions.
 
 See [desktop engine notes](../Vendor/RemoteDesktop/README.md) for protocol constraints, dependency licenses and fixture instructions. Diagnostics involving saved hosts are distinct from synthetic tests; running automated checks does not verify every account, remote server or physical Intel Mac.
+
+Use `/legacy` to verify old-style `input type="button"` login controls with spaced Chinese labels and hidden password-change fields. Saving and reopening must fill only the visible login pair without clicking the button.
