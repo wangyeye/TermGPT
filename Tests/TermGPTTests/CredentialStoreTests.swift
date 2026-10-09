@@ -12,10 +12,12 @@ final class CredentialStoreTests: XCTestCase {
         vault.selected = "fixture-client"
         try store.update { $0.chatGPT = vault; $0.apiKey = "fixture-api-not-real" }
         try SSHPasswordStore.write("fixture-password-not-real", id: id, store: store)
+        try store.update { $0.webPasswords["fixture-origin"] = WebCredential(username: "fixture", password: "fixture-web-not-real") }
         let persisted = try store.read()
         XCTAssertEqual(persisted.chatGPT?.selected, "fixture-client")
         XCTAssertEqual(persisted.chatGPT?.registrations.first?.accessToken, "fixture-token-not-real")
         XCTAssertEqual(persisted.apiKey, "fixture-api-not-real")
+        XCTAssertEqual(persisted.webPasswords["fixture-origin"]?.password, "fixture-web-not-real")
         let file = try FileManager.default.attributesOfItem(atPath: store.url.path)
         let folder = try FileManager.default.attributesOfItem(atPath: directory.path)
         XCTAssertEqual((file[.posixPermissions] as? NSNumber)?.intValue, 0o600)
@@ -25,6 +27,7 @@ final class CredentialStoreTests: XCTestCase {
         try SSHPasswordStore.remove(id: id, store: store)
         XCTAssertNil(try SSHPasswordStore.read(id: id, store: store))
         XCTAssertEqual(try store.read().apiKey, "fixture-api-not-real")
+        XCTAssertEqual(try store.read().webPasswords["fixture-origin"]?.username, "fixture")
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["credentials.json"])
     }
     func testMalformedConfigurationIsNotOverwritten() throws {
@@ -40,6 +43,7 @@ final class CredentialStoreTests: XCTestCase {
     func testPartialConfigurationAndFutureSchema() throws {
         let partial = try JSONDecoder().decode(CredentialConfiguration.self, from: Data("{}".utf8))
         XCTAssertEqual(partial.apiKey, ""); XCTAssertTrue(partial.sshPasswords.isEmpty)
+        XCTAssertTrue(partial.webPasswords.isEmpty)
         XCTAssertThrowsError(try JSONDecoder().decode(CredentialConfiguration.self, from: Data(#"{"schemaVersion":99}"#.utf8)))
     }
 }

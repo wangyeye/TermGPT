@@ -456,7 +456,7 @@ struct BookmarkRow: View {
     let bookmark: Bookmark
     var body: some View {
         HStack(spacing: 0) {
-            Button { workspace.open(name: bookmark.name, bookmark: bookmark) } label: {
+            Button { workspace.openBookmark(bookmark) } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Label(bookmark.name, systemImage: bookmark.kind.icon).lineLimit(1)
                     Text(bookmark.kind.rawValue.uppercased() + " · " + bookmark.host).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -467,7 +467,7 @@ struct BookmarkRow: View {
         }.contextMenu { actions }
     }
     @ViewBuilder private var actions: some View {
-        Button(L("连接")) { workspace.open(name: bookmark.name, bookmark: bookmark) }
+        Button(L("连接")) { workspace.openBookmark(bookmark) }
         Button(L("编辑 / 重命名")) { workspace.editingBookmark = bookmark; workspace.bookmarkShown = true }
         Menu(L("移动到文件夹")) {
             Button(L("未分类")) { workspace.moveBookmark(bookmark.id, folder: nil) }

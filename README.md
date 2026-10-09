@@ -194,6 +194,12 @@ For a desktop-engine-only fix, `./scripts/repack-desktop.sh arm64` (or `x86_64`)
 
 ### Web bookmarks
 
+HTTP Basic/Digest authentication opens a username/password dialog. Cancel aborts authentication; credentials are kept for the browser session by default. Select Save Password to retain them in the local, permission-restricted credentials.json; they are scoped to scheme, host, port, realm and authentication method. In the local fixture, `/auth` uses the synthetic username/password `fixture` / `fixture`.
+
+Opening a bookmark checks its identity against all open tabs. If it is already open, choose **Switch to Existing Tab**, **Open New Tab**, or **Cancel**. This applies to all connection types; switching prefers the current matching tab, otherwise the first matching tab.
+
+Embedded web fields disable spelling checks, automatic corrections and capitalization, including dynamically added fields and subframes. On macOS 15 or later, system Writing Tools are also disabled. Website-provided suggestions and input-method candidates remain controlled by the website or input method.
+
 Choose **WEB** when adding a connection bookmark, enter a name and a full HTTP or HTTPS URL, then select a folder and save. Click the bookmark to open the website inside a central tab. Edit, delete and move bookmarks using the existing menu. Each web tab keeps its own navigation history; the toolbar provides Back, Forward, Reload and an editable address. Tab closing and drag ordering work as for other connections. Web tabs do not provide terminal context or SFTP. macOS WebKit supplies the browser; no additional runtime is required. Website sessions are stored locally by WebKit. Certificate validation uses the system defaults.
 
 For a local browser smoke test, check `python3 --version` (3.8+), then run `python3 scripts/webview-fixture.py`. Add a WEB bookmark with the printed loopback URL. Test navigation, reload, tab switching and closing; stop the fixture with Ctrl+C. The script serves only synthetic pages on loopback and reads no personal files.

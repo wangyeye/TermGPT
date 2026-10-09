@@ -203,6 +203,22 @@ struct RunProposal: Identifiable {
         guard let index = folders.firstIndex(where: { $0.id == id }), folders.indices.contains(index + offset) else { return nil }
         return folders[index + offset].id
     }
+    func openBookmark(_ bookmark: Bookmark) {
+        let matches = sessions.filter { $0.bookmark?.id == bookmark.id }
+        guard !matches.isEmpty else { open(name: bookmark.name, bookmark: bookmark); return }
+        let alert = NSAlert()
+        alert.messageText = L("书签已打开")
+        alert.informativeText = L("“%@”已有标签页，请选择打开新标签或切换到已有标签。", bookmark.name)
+        alert.addButton(withTitle: L("切换到已有标签"))
+        alert.addButton(withTitle: L("打开新标签"))
+        alert.addButton(withTitle: L("取消"))
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            active = matches.first(where: { $0.id == active })?.id ?? matches[0].id
+        case .alertSecondButtonReturn: open(name: bookmark.name, bookmark: bookmark)
+        default: break
+        }
+    }
     func open(name: String, bookmark: Bookmark? = nil) {
         let session = TerminalSession(name: name, bookmark: bookmark)
         session.view.ask = { [weak self, weak session] action, text in

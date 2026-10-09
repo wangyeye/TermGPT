@@ -1,6 +1,8 @@
 import Foundation
 import Darwin
 
+struct WebCredential: Codable { var username: String; var password: String }
+
 // Local JSON configuration. Never included in exports, release packages or logs.
 struct CredentialConfiguration: Codable {
     var schemaVersion = 1
@@ -8,8 +10,9 @@ struct CredentialConfiguration: Codable {
     var apiKey = ""
     var sshPasswords: [String: String] = [:]
     var rdpCertificates: [String: RDPCertificatePin] = [:]
+    var webPasswords: [String: WebCredential] = [:]
     init() {}
-    enum CodingKeys: String, CodingKey { case schemaVersion, chatGPT, apiKey, sshPasswords, rdpCertificates }
+    enum CodingKeys: String, CodingKey { case schemaVersion, chatGPT, apiKey, sshPasswords, rdpCertificates, webPasswords }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
@@ -18,6 +21,7 @@ struct CredentialConfiguration: Codable {
         apiKey = try c.decodeIfPresent(String.self, forKey: .apiKey) ?? ""
         sshPasswords = try c.decodeIfPresent([String: String].self, forKey: .sshPasswords) ?? [:]
         rdpCertificates = try c.decodeIfPresent([String: RDPCertificatePin].self, forKey: .rdpCertificates) ?? [:]
+        webPasswords = try c.decodeIfPresent([String: WebCredential].self, forKey: .webPasswords) ?? [:]
     }
 }
 final class CredentialStore: @unchecked Sendable {
