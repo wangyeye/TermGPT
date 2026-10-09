@@ -10,6 +10,13 @@ RELEASE_STAGE="$(mktemp -d /private/tmp/termgpt-release.XXXXXX)"
 trap 'rm -rf "$RELEASE_STAGE"' EXIT
 # Compile from a source-only archive outside a user's home directory.
 git archive HEAD | tar -x -C "$RELEASE_STAGE"
+# Reuse only checksum-verified upstream archives; extracted files and local data are excluded.
+mkdir -p "$RELEASE_STAGE/.build/remote-sources"
+for dependency in freerdp libvnc openssl; do
+    if [[ -f "$RELEASE_ROOT/.build/remote-sources/$dependency.tar.gz" ]]; then
+        cp -X "$RELEASE_ROOT/.build/remote-sources/$dependency.tar.gz" "$RELEASE_STAGE/.build/remote-sources/"
+    fi
+done
 cd "$RELEASE_STAGE"
 ./scripts/make-icon.sh
 source ./scripts/toolchain.sh
@@ -35,5 +42,6 @@ PY
 done
 python3 "$RELEASE_ROOT/scripts/audit-release.py" "$RELEASE_ROOT/dist/TermGPT-macOS-arm64.zip" "$RELEASE_ROOT/dist/TermGPT-macOS-x86_64.zip"
 cd "$RELEASE_ROOT/dist"
-shasum -a 256 TermGPT-macOS-arm64.zip TermGPT-macOS-x86_64.zip > SHA256SUMS
+python3 "$RELEASE_ROOT/scripts/package-remote-source.py"
+shasum -a 256 TermGPT-macOS-arm64.zip TermGPT-macOS-x86_64.zip TermGPT-RemoteDesktop-source.tar.gz > SHA256SUMS
 shasum -a 256 -c SHA256SUMS

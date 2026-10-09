@@ -140,7 +140,7 @@ For dual-architecture releases, commit first and run `./scripts/build-release.sh
 
 ## Scope and license
 
-Not implemented: split terminals, combined multi-terminal context, an agent loop, exact command blocks, SFTP, MCP, SQLite, nested bookmark folders or native Anthropic/Gemini protocols.
+Not implemented: split terminals, combined multi-terminal context, an agent loop, exact command blocks, MCP, SQLite, nested bookmark folders or native Anthropic/Gemini protocols.
 
 MIT licensed. SwiftTerm upstream v1.9.0, commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`, retains its MIT license and copyright notices. Its local manifest is a macOS-only library with no remote dependencies; debug paths use the dynamic home directory. The AI-generated icon depicts a terminal prompt and sparkles without third-party trademarks. TermGPT is not an official OpenAI product.
 
@@ -148,7 +148,7 @@ MIT licensed. SwiftTerm upstream v1.9.0, commit `8840e3596739adfe9599c0e7fff89f4
 
 ### SFTP file browser
 
-Select an SSH terminal tab and click SFTP Files on the right of the terminal tab bar (or right-click an SSH tab → SFTP Files). The SFTP window stays attached to that bookmarked host even if you switch terminal tabs. Local Shell does not expose SFTP; SSH sessions started manually inside a local shell cannot be detected.
+Select an SSH terminal tab and click the folder button in the top toolbar (or right-click an SSH tab → SFTP Files). The SFTP window stays attached to that bookmarked host even if you switch terminal tabs. Local Shell does not expose SFTP; SSH sessions started manually inside a local shell cannot be detected.
 
 Use the path field, Parent Directory, Refresh, or double-click a directory to browse. Select a file and click Download (or double-click it); choose a local destination. Upload File lets you select one local file for the current remote directory. Existing remote names require replacement confirmation. Progress reports acknowledged bytes, and failures are shown in the window. Cancel stops the SFTP connection without stopping your terminal.
 
@@ -165,3 +165,15 @@ In a remote terminal, run `sz filename` to download: TermGPT opens a local desti
 Binary protocol output is intercepted before terminal rendering. During transfers, normal keyboard input and AI command actions are suspended. The terminal footer shows progress/errors and Cancel Transfer. Downloads use a private staging folder and preserve existing local names by adding a numeric suffix. Cancellation removes partial local downloads. After a failed batch, retry the transfer; recursive directory transfers are not supported.
 
 Bundled lrzsz 0.13.1 runs as separate GPL-2.0-or-later helper executables; the corresponding source, build instructions and license are in `Vendor/lrzsz`. `./scripts/build-zmodem.sh arm64` checks the environment and builds the helpers (use x86_64 for Intel). `python3 scripts/test-zmodem.py .build/zmodem-arm64` verifies real binary/UTF-8/empty/multi-file transfers without touching remote hosts. The app remains under its existing license; see the bundled dependency's notices.
+
+### VNC and RDP desktops
+
+Click **+** under Connection Bookmarks, choose **VNC** or **RDP**, and enter host, port and credentials. Defaults are VNC 5900 and RDP 3389; RDP supports an optional domain. Bookmarks share the existing folders, Edit/Rename and Delete menus. Click a bookmark row to open its desktop in a central tab, with close/reorder/close-right/close-all support. SSH bookmarks remain compatible.
+
+The embedded desktop supports keyboard, mouse, scrolling and a scaled view of the remote screen. RDP opens a 1440×900 session; received desktops are limited to 4096×2160. **Ctrl+Alt+Del** is available above RDP desktops. Clipboard sharing can be disabled per bookmark; it synchronizes text (up to 1 MiB) only for the selected desktop. RDP supports Unicode through CLIPRDR. VNC Unicode requires extended clipboard support on the server; traditional VNC servers support Latin-1 text only. Files and images in the clipboard are not transferred.
+
+RDP negotiates TLS/NLA; an untrusted certificate shows its host, subject, issuer and fingerprint, with a choice to trust once or cancel. No permanent certificate bypass is enabled. Traditional VNC password authentication does not encrypt the desktop connection; use a trusted private network or secure tunnel. Desktop passwords use the same local permission-restricted JSON credential file as SSH, with no Keychain access. SFTP and AI command execution apply only to terminal tabs, never desktops.
+
+No external viewer or Homebrew runtime is required. Build dependencies and license/source distribution are documented in [Vendor/RemoteDesktop/README.md](Vendor/RemoteDesktop/README.md). `scripts/build-remote-desktop.sh` builds the statically linked engine for ARM or Intel; `scripts/test-remote-desktop.py` and `scripts/test-rdp-desktop.py` run synthetic loopback integration tests. Audio, drive redirection, gateways, multi-monitor and file clipboard are not included.
+
+The independent desktop helper is GPL-3.0-or-later because it combines Apache-2.0 and GPL-2.0-or-later engines. The main app retains its MIT license. Releases include `TermGPT-RemoteDesktop-source.tar.gz`, containing the exact upstream source archives and helper/build sources; `python3 scripts/package-remote-source.py` regenerates it after checksum verification. RDP uses remote Windows keyboard shortcuts; Command is mapped to Control for common copy/paste shortcuts.

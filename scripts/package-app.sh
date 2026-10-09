@@ -28,6 +28,12 @@ for component in TermGPTRZ TermGPTSZ; do
     codesign --force --sign - "$APP/Contents/MacOS/$component"
 done
 cp -X Vendor/lrzsz/COPYING "$APP/Contents/Resources/lrzsz-COPYING.txt"
+./scripts/build-remote-desktop.sh "$PACKAGE_ARCH" "$(dirname "$APP_BINARY")"
+cp -X "$(dirname "$APP_BINARY")/TermGPTRemoteDesktop" "$APP/Contents/MacOS/TermGPTRemoteDesktop"
+codesign --force --sign - "$APP/Contents/MacOS/TermGPTRemoteDesktop"
+for license in NOTICE FreeRDP-LICENSE LibVNC-COPYING OpenSSL-LICENSE GPL-3.0; do
+    cp -X "Vendor/RemoteDesktop/$license.txt" "$APP/Contents/Resources/RemoteDesktop-$license.txt"
+done
 cp -X Assets/TermGPT.icns "$APP/Contents/Resources/TermGPT.icns"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -38,8 +44,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>TermGPT</string>
 <key>CFBundleDisplayName</key><string>TermGPT</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.5.1</string>
-<key>CFBundleVersion</key><string>13</string>
+<key>CFBundleShortVersionString</key><string>0.6.0</string>
+<key>CFBundleVersion</key><string>14</string>
 <key>CFBundleIconFile</key><string>TermGPT</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>

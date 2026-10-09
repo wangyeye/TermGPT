@@ -142,7 +142,7 @@ ICNS 可能由系统工具添加元数据，因此发布只包含经检查的 PN
 
 ## 范围与许可证
 
-尚未实现分屏、多终端联合上下文、Agent 循环、精确命令块、SFTP、MCP、SQLite、多层文件夹和原生 Anthropic/Gemini 协议。
+尚未实现分屏、多终端联合上下文、Agent 循环、精确命令块、MCP、SQLite、多层文件夹和原生 Anthropic/Gemini 协议。
 
 TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9599c0e7fff89f4fa88bedcf`，保留其 MIT License 和版权声明；本地 Package.swift 简化为 macOS 库，无远程依赖；上游调试路径改为动态主目录，避免个人绝对路径。图标由 AI 生成，包含终端提示符和星光，不包含第三方商标。项目不是 OpenAI 官方产品。
 
@@ -152,7 +152,7 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 
 ### SFTP 文件面板
 
-选中 SSH 终端标签页，点击终端标签栏右侧的“SFTP 文件”按钮（或右键 SSH 标签页 → SFTP 文件）。面板固定连接打开时的书签主机，之后切换标签页不会改变文件目标。本地 Shell 不提供此按钮；在本地终端里手动执行 SSH 的连接无法自动识别。
+选中 SSH 终端标签页，点击顶部工具栏的文件夹按钮（或右键 SSH 标签页 → SFTP 文件）。面板固定连接打开时的书签主机，之后切换标签页不会改变文件目标。本地 Shell 不提供此按钮；在本地终端里手动执行 SSH 的连接无法自动识别。
 
 输入远端路径、点击上级目录/刷新，或双击目录浏览。选中文件后点击下载（也可双击文件），选择本地保存位置；上传文件按钮选择单个本地文件，上传到当前远端目录。同名替换会确认。传输显示已确认的字节进度，失败原因显示在窗口中；取消只停止 SFTP，不关闭终端。
 
@@ -169,3 +169,15 @@ TermGPT 使用 MIT License。SwiftTerm 上游 v1.9.0，commit `8840e3596739adfe9
 协议数据不会作为终端文字渲染。传输期间暂停普通键盘输入和 AI 命令操作，终端底部显示进度、错误和取消传输按钮。下载先接收到私有临时目录，成功后移动到所选位置，同名文件添加数字后缀，不覆盖原文件。取消会删除部分本地下载；批量失败后请重试，不支持递归传输目录。
 
 内置 lrzsz 0.13.1 是单独的 GPL-2.0-or-later 辅助程序，完整对应源码、许可与编译说明位于 `Vendor/lrzsz`。`./scripts/build-zmodem.sh arm64` 检查环境并编译工具，Intel 使用 x86_64；`python3 scripts/test-zmodem.py .build/zmodem-arm64` 验证实际协议传输，不访问真实远端。
+
+### VNC 与 RDP 桌面
+
+在“连接书签”旁点击 **+**，选择 **VNC** 或 **RDP**，填写主机、端口和登录信息。默认端口为 VNC 5900、RDP 3389；RDP 可填写域。书签沿用文件夹管理、修改/重命名和删除菜单，旧 SSH 书签兼容。点击书签所在行后，桌面在中间标签页打开，支持关闭、拖动排序、关闭右侧和关闭全部。
+
+桌面支持键盘、鼠标、滚轮和画面缩放。RDP 建立 1440×900 会话，接收画面上限为 4096×2160；上方提供 **Ctrl+Alt+Del** 按钮。可在书签中关闭剪贴板同步；启用时仅当前桌面标签页同步文本，上限 1 MiB。RDP 支持 Unicode；VNC 中文等 Unicode 文本需要服务器支持扩展剪贴板，传统 VNC 仅支持 Latin-1 文本。剪贴板文件和图片不传输。
+
+RDP 使用 TLS/NLA，遇到不受信任的证书会展示主机、颁发者和指纹，由用户选择仅本次信任或取消，不永久跳过证书验证。传统 VNC 密码认证不加密桌面流量，请在可信网络或安全隧道中使用。密码保存到本机限制权限的 JSON 凭据文件，不使用钥匙串。SFTP 和 AI 命令执行仅适用于终端标签页，不会发送到桌面。
+
+无需外部桌面客户端或 Homebrew 运行库。客户端库、构建环境和许可证说明见 [Vendor/RemoteDesktop/README.md](Vendor/RemoteDesktop/README.md)。`scripts/build-remote-desktop.sh` 构建 ARM/Intel 桌面组件；`scripts/test-remote-desktop.py`、`scripts/test-rdp-desktop.py` 使用合成本机服务验证协议，不读取真实凭据。不包含音频、磁盘映射、网关、多显示器或文件剪贴板功能。
+
+独立桌面组件采用 GPL-3.0-or-later，主程序保持 MIT 许可证。发行版同时提供 `TermGPT-RemoteDesktop-source.tar.gz`，包含固定版本的完整上游源码及组件/构建源码；`python3 scripts/package-remote-source.py` 校验后重新生成该源码包。RDP 内使用 Windows 快捷键，Command 映射为 Control，便于复制/粘贴。

@@ -4,6 +4,11 @@ import Security
 enum SSHAuthentication: String, Codable, CaseIterable {
     case automatic = "SSH config / Agent", password = "密码", key = "私钥"
 }
+enum ConnectionKind: String, Codable, CaseIterable {
+    case ssh, vnc, rdp
+    var defaultPort: Int { switch self { case .ssh: return 22; case .vnc: return 5900; case .rdp: return 3389 } }
+    var icon: String { switch self { case .ssh: return "server.rack"; case .vnc: return "display"; case .rdp: return "desktopcomputer" } }
+}
 struct BookmarkFolder: Codable, Identifiable, Equatable {
     var id = UUID()
     var name = "新文件夹"
@@ -18,8 +23,17 @@ struct Bookmark: Codable, Identifiable, Equatable {
     var folderID: UUID?
     var authentication: SSHAuthentication?
     var notes = ""
-    func arguments() throws -> [String] {
+    var connectionKind: ConnectionKind?
+    var domain: String?
+    var clipboardSync: Bool?
+    var kind: ConnectionKind { connectionKind ?? .ssh }
+    var syncClipboard: Bool { clipboardSync ?? true }
+    func validate() throws {
         guard !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }), !user.hasPrefix("-"), (1...65535).contains(port) else { throw AppError.message("主机、用户名或端口无效") }
+    }
+    func arguments() throws -> [String] {
+        try validate()
+        guard kind == .ssh else { throw AppError.message("远程桌面不能作为 SSH 终端执行") }
         var a = ["-tt", "-p", String(port), "-o", "ServerAliveInterval=30"]
         if !user.isEmpty { a += ["-l", user] }
         if !keyPath.isEmpty && (authentication == nil || authentication == .key) { a += ["-i", NSString(string: keyPath).expandingTildeInPath] }

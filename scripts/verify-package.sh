@@ -19,7 +19,7 @@ fi
 file "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/TermGPT"
 echo 'ZIP 解压、应用格式与签名验证通过'
 
-for component in TermGPTRZ TermGPTSZ; do
+for component in TermGPTRZ TermGPTSZ TermGPTRemoteDesktop; do
     [[ -x "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/$component" ]] || { echo 'Missing ZMODEM helper'; exit 1; }
     codesign --verify --strict "$VERIFY_STAGE/TermGPT.app/Contents/MacOS/$component"
     if [[ -n "${2:-}" ]]; then

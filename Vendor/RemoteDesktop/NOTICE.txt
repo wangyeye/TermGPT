@@ -1,0 +1,7 @@
+TermGPTRemoteDesktop is a separate GPL-3.0-or-later executable.
+Includes FreeRDP 3.32.1 (Apache-2.0), LibVNCClient 0.9.15 (GPL-2.0-or-later), and OpenSSL 3.6.5 (Apache-2.0).
+The corresponding source archive is supplied alongside TermGPT releases. Source URLs and verified hashes are recorded in dependencies.json.
+FreeRDP: https://github.com/FreeRDP/FreeRDP
+LibVNC: https://github.com/LibVNC/libvncserver
+OpenSSL: https://github.com/openssl/openssl
+No warranty is provided. See the included license texts.

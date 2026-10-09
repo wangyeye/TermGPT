@@ -49,7 +49,7 @@ struct MainView: View {
             }
             Divider()
             HStack {
-                Label(workspace.activeSession?.name ?? L("无终端"), systemImage: "terminal")
+                Label(workspace.activeSession?.name ?? L("无终端"), systemImage: workspace.activeSession?.bookmark?.kind.icon ?? "terminal")
                 Text(workspace.notice.isEmpty ? L("上下文：%@ · 默认仅建议命令", L(workspace.contextMode.rawValue)) : L(workspace.notice)).lineLimit(1)
                 Spacer()
                 Text(workspace.busy ? L("AI 正在回复") : (workspace.preferences.provider == .chatGPT ? "ChatGPT" : (workspace.preferences.model.isEmpty ? L("AI 未配置") : workspace.preferences.provider.rawValue))).foregroundStyle(workspace.busy ? .orange : .secondary)
@@ -60,7 +60,7 @@ struct MainView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { sftpBookmark = workspace.activeSession?.bookmark } label: { Image(systemName: "folder") }
-                    .disabled(workspace.activeSession?.bookmark == nil).help(L("打开当前主机 SFTP")).accessibilityLabel(L("打开当前主机 SFTP"))
+                    .disabled(workspace.activeSession?.bookmark?.kind != .ssh).help(L("打开当前主机 SFTP")).accessibilityLabel(L("打开当前主机 SFTP"))
             }
             ToolbarItem(placement: .primaryAction) { Spacer().frame(width: 12) }
             ToolbarItem(placement: .primaryAction) {
@@ -103,7 +103,7 @@ struct MainView: View {
             HStack { Image(nsImage: TermGPTIcon.image).resizable().frame(width: 28, height: 28); Text("TermGPT").font(.title2.bold()) }.padding(.top, 8)
             Text("AI TERMINAL WORKBENCH").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
             Divider()
-            HStack { Text(L("SSH 书签")).font(.headline); Spacer(); Button { workspace.foldersShown = true } label: { Image(systemName: "folder.badge.gearshape") }.buttonStyle(.plain).help(L("管理文件夹")); Button { workspace.editingBookmark = nil; workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
+            HStack { Text(L("连接书签")).font(.headline); Spacer(); Button { workspace.foldersShown = true } label: { Image(systemName: "folder.badge.gearshape") }.buttonStyle(.plain).help(L("管理文件夹")); Button { workspace.editingBookmark = nil; workspace.bookmarkShown = true } label: { Image(systemName: "plus") }.buttonStyle(.plain) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     Button { workspace.newLocal() } label: { Label(L("Local Shell"), systemImage: "laptopcomputer").frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 18).padding(.vertical, 8).contentShape(Rectangle()) }.buttonStyle(.plain)
@@ -150,7 +150,7 @@ struct MainView: View {
                     ForEach(workspace.sessions) { session in
                         TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
                             .contextMenu {
-                                if let bookmark = session.bookmark {
+                                if let bookmark = session.bookmark, bookmark.kind == .ssh {
                                     Button(L("SFTP 文件")) { sftpBookmark = bookmark }
                                     Divider()
                                 }
@@ -168,22 +168,21 @@ struct MainView: View {
                     Button { workspace.newLocal() } label: { Image(systemName: "plus") }.buttonStyle(.plain).padding(10)
                 }.padding(6)
                 }.frame(maxWidth: .infinity)
-                if let bookmark = workspace.activeSession?.bookmark {
-                    Button { sftpBookmark = bookmark } label: { Label(L("SFTP 文件"), systemImage: "folder") }
-                        .buttonStyle(.bordered).help(L("打开当前主机 SFTP")).padding(.trailing, 8)
-                }
             }.frame(height: 47)
             Divider()
             if let session = workspace.activeSession {
                 ZStack {
                     ForEach(workspace.sessions) { pane in
-                        TerminalHost(session: pane)
+                        Group {
+                            if let desktop = pane.desktop { DesktopPane(desktop: desktop, active: workspace.active == pane.id) }
+                            else { TerminalHost(session: pane) }
+                        }
                             .opacity(workspace.active == pane.id ? 1 : 0)
                             .allowsHitTesting(workspace.active == pane.id)
                             .accessibilityHidden(workspace.active != pane.id)
                     }
                 }
-                SessionFooter(session: session)
+                if session.isTerminal { SessionFooter(session: session) }
             } else {
                 VStack(spacing: 18) { Image(systemName: "terminal").font(.largeTitle); Button(L("打开本地终端")) { workspace.newLocal() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -257,7 +256,11 @@ struct TerminalTab: View {
     let close: () -> Void
     var body: some View {
         HStack(spacing: 7) {
-            Button(action: select) { HStack { Circle().fill(session.running ? (session.bookmark == nil ? Color.green : Color.yellow) : Color.gray).frame(width: 7, height: 7); Text(session.name) } }.buttonStyle(.plain)
+            Button(action: select) { HStack {
+                Circle().fill(session.running ? (session.bookmark == nil || !session.isTerminal ? Color.green : Color.yellow) : Color.gray).frame(width: 7, height: 7)
+                if !session.isTerminal { Image(systemName: session.bookmark?.kind.icon ?? "display").font(.caption) }
+                Text(session.name)
+            } }.buttonStyle(.plain)
             Button(action: close) { Image(systemName: "xmark").font(.system(size: 9)) }.buttonStyle(.plain)
         }.padding(9).background(active ? Color.accentColor.opacity(0.13) : Color.clear).cornerRadius(7)
     }
@@ -300,8 +303,8 @@ struct MessageView: View {
                                 Spacer()
                                 Button(L("复制")) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code, forType: .string) }
                                 if block.isShellCommand {
-                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || workspace.activeSession?.transferring == true || index == parts.count - 1)
-                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.running != true || workspace.activeSession?.transferring == true || index == parts.count - 1)
+                                    Button(L("填入")) { workspace.insert(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.isTerminal != true || workspace.activeSession?.running != true || workspace.activeSession?.transferring == true || index == parts.count - 1)
+                                    Button(L("执行…")) { workspace.propose(code) }.disabled(!Safety.insertable(code) || workspace.busy || workspace.activeSession?.isTerminal != true || workspace.activeSession?.running != true || workspace.activeSession?.transferring == true || index == parts.count - 1)
                                 }
                             }.font(.caption)
                         }.padding(12).background(Color.primary.opacity(0.055)).cornerRadius(8)
@@ -452,8 +455,8 @@ struct BookmarkRow: View {
         HStack(spacing: 0) {
             Button { workspace.open(name: bookmark.name, bookmark: bookmark) } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Label(bookmark.name, systemImage: "server.rack").lineLimit(1)
-                    Text(bookmark.host).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Label(bookmark.name, systemImage: bookmark.kind.icon).lineLimit(1)
+                    Text(bookmark.kind.rawValue.uppercased() + " · " + bookmark.host).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(7).contentShape(Rectangle())
             }.buttonStyle(.plain)
             Menu { actions } label: { Image(systemName: "ellipsis") }
@@ -559,15 +562,20 @@ struct BookmarkView: View {
     @FocusState private var nameFocused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(existing == nil ? L("新增 SSH 书签") : L("编辑 SSH 书签")).font(.title2.bold())
+            Text(existing == nil ? L("新增连接书签") : L("编辑连接书签")).font(.title2.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    field(L("连接类型")) {
+                        Picker(L("连接类型"), selection: Binding(get: { bookmark.kind }, set: { kind in
+                            bookmark.connectionKind = kind; bookmark.port = kind.defaultPort
+                        })) { ForEach(ConnectionKind.allCases, id: \.self) { Text($0.rawValue.uppercased()).tag($0) } }.pickerStyle(.segmented)
+                    }
                     field(L("名称")) { TextField(L("例如：开发服务器"), text: $bookmark.name).focused($nameFocused) }
-                    field(L("主机 / SSH config 别名")) { TextField(L("主机名或 config 别名"), text: $bookmark.host) }
+                    field(bookmark.kind == .ssh ? L("主机 / SSH config 别名") : L("主机")) { TextField(L("主机名或 IP 地址"), text: $bookmark.host) }
                     HStack(alignment: .top, spacing: 16) {
                         field(L("端口")) { TextField("22", value: $bookmark.port, formatter: NumberFormatter()) }.frame(width: 100)
-                        field(L("用户名"), help: L("留空使用 SSH config")) { TextField(L("可选"), text: $bookmark.user) }
+                        field(L("用户名"), help: bookmark.kind == .ssh ? L("留空使用 SSH config") : nil) { TextField(L("可选"), text: $bookmark.user) }
                     }
                     field(L("文件夹")) {
                         Picker(L("文件夹"), selection: $bookmark.folderID) {
@@ -575,11 +583,20 @@ struct BookmarkView: View {
                             ForEach(workspace.folders) { folder in Text(folder.name).tag(Optional(folder.id)) }
                         }.labelsHidden()
                     }
+                    if bookmark.kind == .ssh {
                     field(L("登录方式")) {
                         Picker(L("登录方式"), selection: Binding(get: { bookmark.authentication ?? (bookmark.keyPath.isEmpty ? .automatic : .key) }, set: { bookmark.authentication = $0 })) {
                             ForEach(SSHAuthentication.allCases, id: \.self) { Text(L($0.rawValue)).tag($0) }
                         }.labelsHidden()
                     }
+                    }
+                    if bookmark.kind != .ssh {
+                        field(L("密码"), help: L("保存到本机 JSON 配置，不使用钥匙串")) { SecureField(L("登录密码"), text: $password) }
+                        if bookmark.kind == .rdp {
+                            field(L("域（可选）")) { TextField("", text: Binding(get: { bookmark.domain ?? "" }, set: { bookmark.domain = $0 })) }
+                        }
+                        Toggle(L("同步文本剪贴板"), isOn: Binding(get: { bookmark.syncClipboard }, set: { bookmark.clipboardSync = $0 }))
+                    } else {
                     if bookmark.authentication == .password {
                         field(L("密码"), help: L("保存到本机 JSON 配置，不使用钥匙串")) { SecureField(L("SSH 登录密码"), text: $password) }
                     } else if bookmark.authentication == .key || (bookmark.authentication == nil && !bookmark.keyPath.isEmpty) {
@@ -593,8 +610,9 @@ struct BookmarkView: View {
                             }
                         }
                     }
+                    }
                     field(L("备注")) { TextField(L("可选"), text: $bookmark.notes) }
-                    Text(L("采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent 和 Known Hosts。保存的密码仅通过 SSH 认证组件使用；首次连接仍需确认主机指纹。"))
+                    Text(L(bookmark.kind == .ssh ? "采用系统 OpenSSH，兼容 ~/.ssh/config、SSH Agent 和 Known Hosts。保存的密码仅通过 SSH 认证组件使用；首次连接仍需确认主机指纹。" : "远程桌面在中间标签页打开。剪贴板仅同步当前桌面的文本。"))
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
