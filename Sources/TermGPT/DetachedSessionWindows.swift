@@ -55,6 +55,7 @@ struct TabStripBoundsKey: PreferenceKey {
         controller.window.performClose(nil); return true
     }
     func windowDidBecomeKey(_ notification: Notification) {
+        workspace?.objectWillChange.send()
         DispatchQueue.main.async { [weak self] in
             guard let self, self.window.isKeyWindow, self.session.isTerminal, !self.session.searchShown, self.session.view.window === self.window else { return }
             self.window.makeFirstResponder(self.session.view)
