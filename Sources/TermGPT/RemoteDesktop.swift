@@ -290,6 +290,7 @@ struct DesktopPane: View {
     var reconnect: (() -> Void)? = nil
     var body: some View {
         DesktopHost(desktop: desktop, active: active)
+            .id(ObjectIdentifier(desktop))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 if !desktop.connected {
