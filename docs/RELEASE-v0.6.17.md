@@ -15,3 +15,7 @@ ARM and Intel packages are ad-hoc signed, not notarized. Physical Intel testing 
 ARM / Intel 安装包为临时签名，尚未公证；Intel 真机验证待完成。发布包不包含个人配置或密码。
 
 Validation: 78 tests, zero failures, one optional skip. Live GUI validation is described below after installation.
+
+Actual GUI validation: returning a live local terminal preserved its command/output search results. Restart restored five main tabs, one detached window and two library windows with an identical layout fingerprint, including frames and focus; sessions remained pending. Quick Open was visually verified in dark mode. Native pointer dragging still awaits manual verification; automated coordinate actions did not produce a usable drag.
+
+实际界面验证：本地终端移回后保留命令与输出，搜索结果一致。重启恢复了 5 个主窗口标签、1 个独立窗口和 2 个库窗口，含位置、大小和焦点的布局摘要完全一致，连接保持待恢复状态。快速打开暗色主题已截图验证。原生鼠标拖拽仍待人工验证，自动化坐标操作未产生有效拖拽。

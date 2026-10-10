@@ -152,3 +152,7 @@ Not implemented: split terminals, nested bookmark folders, combined multi-termin
 Notepad and Command Library open in separate, resizable windows. Both can stay open while you use the main tabs; opening an existing window brings it forward. Editors block only their own library window. Command insertion follows the currently selected terminal, shown in the library.
 
 Drag a tab beyond the tab strip (32-point tolerance) to open its existing session in a separate window, or choose **Move to Separate Window** from its menu. Dragging inside the strip still reorders tabs. Detached windows contain only their session controls, with no AI assistant or library panels. Closing one ends that session. Drag the window header back to the main tab strip, or click **Move back to main window**, to return the same live session. On restart, main and detached windows restore their tab distribution, selected session, positions and sizes; open Notepad and Command Library windows also return. Windows are fitted to available screens. Connections remain pending until **Restore Connection** is clicked.
+
+### Check saved window layout
+
+With Python 3 installed and TermGPT started at least once, run `python3 scripts/check-workspace-layout.py` from the repository directory. An optional argument selects a different workspace JSON. The read-only tool reports window/tab counts and a SHA-256 fingerprint of window placement and session IDs, without printing bookmark addresses, notes or credentials. Compare its output before exit and after restart to verify layout restoration.
