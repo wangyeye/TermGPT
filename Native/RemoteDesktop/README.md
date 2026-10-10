@@ -19,6 +19,8 @@ For bridge-only fixes after a full release build, `./scripts/repackage-desktop-f
 
 The RDP DesktopResize callback resets codec capacity together with the framebuffer, allowing four-pixel scanline padding used by xrdp. The authenticated live resize probe complements the loopback fixture; the fixture alone does not reproduce this xrdp behavior.
 
+The bridge accepts `desktopScale` (100–500, default 100) with initial configuration and resize messages. RDP sends it as DesktopScaleFactor with DeviceScaleFactor 100; scale-only changes also send a monitor layout. VNC uses the requested pixel dimensions but cannot set remote UI scaling. `test-rdp-desktop.py` checks a 200% request and a same-size update back to 100%, in addition to frame, audio, input and clipboard checks. Client display modes, pixel bounds, defaults and actual-resolution reporting are described in the root README.
+
 ## Audio
 
 RDP enables RDPSND with FreeRDP’s native macOS AVAudioEngine backend. Audio capture stays disabled; no microphone permission is requested. The server must provide audio redirection; xrdp needs its server audio modules. The loopback RDP fixture sends synthetic PCM and requires the playback acknowledgment alongside resize/input/clipboard checks.

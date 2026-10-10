@@ -41,7 +41,7 @@ final class WorkTerminal: LocalProcessTerminalView {
 final class TerminalSession: ObservableObject, Identifiable, LocalProcessTerminalViewDelegate {
     let id: UUID
     let name: String
-    let bookmark: Bookmark?
+    var bookmark: Bookmark?
     @Published var desktop: RemoteDesktop?
     var web: WebSession?
     var isTerminal: Bool { bookmark?.kind == .ssh || bookmark == nil }
@@ -286,6 +286,18 @@ struct RunProposal: Identifiable {
         } else { try SSHPasswordStore.remove(id: bookmark.id) }
         if let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[index] = bookmark }
         else { bookmarks.append(bookmark) }
+        if bookmark.kind == .vnc || bookmark.kind == .rdp {
+            setDesktopDisplay(id: bookmark.id, mode: bookmark.desktopDisplayMode ?? .fit, fixed: bookmark.desktopFixedResolution ?? .fullHD)
+        } else { persist() }
+    }
+    func setDesktopDisplay(id: UUID, mode: DesktopDisplayMode, fixed: DesktopFixedResolution) {
+        if let index = bookmarks.firstIndex(where: { $0.id == id }) {
+            bookmarks[index].desktopDisplayMode = mode; bookmarks[index].desktopFixedResolution = fixed
+        }
+        for session in sessions + detachedSessions where session.bookmark?.id == id {
+            session.bookmark?.desktopDisplayMode = mode; session.bookmark?.desktopFixedResolution = fixed
+            session.desktop?.setDisplay(mode: mode, fixed: fixed)
+        }
         persist()
     }
     func deleteBookmark(_ id: UUID) {

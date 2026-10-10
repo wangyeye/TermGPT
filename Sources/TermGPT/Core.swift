@@ -26,6 +26,8 @@ struct Bookmark: Codable, Identifiable, Equatable {
     var connectionKind: ConnectionKind?
     var domain: String?
     var clipboardSync: Bool?
+    var desktopDisplayMode: DesktopDisplayMode?
+    var desktopFixedResolution: DesktopFixedResolution?
     var kind: ConnectionKind { connectionKind ?? .ssh }
     var syncClipboard: Bool { clipboardSync ?? true }
     static func cleanPastedAddress(_ value: String) -> String {

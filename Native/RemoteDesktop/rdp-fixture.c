@@ -40,6 +40,7 @@ static atomic_uint resizeWidth, resizeHeight;
 static UINT resized(DispServerContext *context, const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *pdu) {
  if (pdu->NumMonitors != 1) return ERROR_INVALID_DATA;
  printf("resize %u %u\n", pdu->Monitors[0].Width, pdu->Monitors[0].Height); fflush(stdout);
+ printf("scale %u\n", pdu->Monitors[0].DesktopScaleFactor); fflush(stdout);
  atomic_store(&resizeHeight,pdu->Monitors[0].Height); atomic_store(&resizeWidth,pdu->Monitors[0].Width);
  return CHANNEL_RC_OK;
 }

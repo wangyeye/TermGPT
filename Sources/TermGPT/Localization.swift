@@ -15,6 +15,14 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "适应窗口": "Fit Window",
+        "Retina 高清": "Retina High Resolution",
+        "固定分辨率": "Fixed Resolution",
+        "显示模式": "Display Mode",
+        "实际远端分辨率：%@": "Actual Remote Resolution: %@",
+        "等待远端画面": "Waiting for remote frame",
+        "显示的是上次收到的分辨率": "Showing the last received resolution",
+        "Retina 高清按屏幕像素倍率请求分辨率。RDP 同时请求界面缩放；VNC 的界面缩放需在远端设置。远端不支持调整时按原分辨率缩放显示。": "Retina mode requests pixels at the screen backing scale. RDP also requests UI scaling; configure VNC UI scaling on the remote host. Unsupported servers keep their resolution and the image scales to fit.",
         "移到独立窗口": "Move to Separate Window",
         "会话功能": "Session Actions",
         "记事本": "Notepad",

@@ -94,7 +94,7 @@ private struct DetachedSessionContent: View {
                 if let bookmark = session.bookmark, bookmark.kind == .ssh { Button { sftp = bookmark } label: { Image(systemName: "folder") }.help(L("SFTP 文件")) }
                 if let browser = session.web { Button { browser.view.reloadFromOrigin() } label: { Image(systemName: "arrow.clockwise") }.help(L("强制刷新")) }
                 if session.bookmark?.kind == .ssh || session.desktop != nil {
-                    Menu { ConnectionTabActions(session: session, preferences: workspace.preferences); if let desktop = session.desktop { DesktopTabActions(desktop: desktop) } } label: { Image(systemName: "ellipsis") }.help(L("会话功能"))
+                    Menu { ConnectionTabActions(session: session, preferences: workspace.preferences); if let desktop = session.desktop { DesktopTabActions(desktop: desktop, workspace: workspace) } } label: { Image(systemName: "ellipsis") }.help(L("会话功能"))
                 }
             }.padding(8)
             Divider()

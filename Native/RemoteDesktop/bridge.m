@@ -34,11 +34,12 @@ static BOOL clipboardReady = NO;
 static DispClientContext *display;
 static BOOL displayReady = NO;
 static UINT64 displayMaxArea;
-static UINT32 desiredWidth = 720, desiredHeight = 600, sentWidth, sentHeight;
+static UINT32 desiredWidth = 720, desiredHeight = 600, desiredScale = 100, sentWidth, sentHeight, sentScale;
 static void rememberResize(NSDictionary *item) {
  int width = [item[@"width"] intValue], height = [item[@"height"] intValue];
  if (width < 200 || height < 200 || width > 4096 || height > 2160) return;
  desiredWidth = width & ~1; desiredHeight = height;
+ int scale = [item[@"desktopScale"] intValue]; desiredScale = scale >= 100 && scale <= 500 ? scale : 100;
 }
 static NSCondition *certificateCondition;
 static NSInteger certificateDecision = -1;
@@ -156,14 +157,14 @@ static UINT displayCaps(DispClientContext *context, UINT32 monitors, UINT32 fact
 }
 static void sendRDPResize(void) {
  @synchronized(commands) {
-  if (!display || !displayReady || (sentWidth == desiredWidth && sentHeight == desiredHeight)) return;
+  if (!display || !displayReady || (sentWidth == desiredWidth && sentHeight == desiredHeight && sentScale == desiredScale)) return;
   if (displayMaxArea && (UINT64)desiredWidth * desiredHeight > displayMaxArea) return;
   DISPLAY_CONTROL_MONITOR_LAYOUT layout = {0}; layout.Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
   layout.Width = desiredWidth; layout.Height = desiredHeight;
   layout.PhysicalWidth = MAX(10, desiredWidth * 254 / 960); layout.PhysicalHeight = MAX(10, desiredHeight * 254 / 960);
-  layout.DesktopScaleFactor = 100; layout.DeviceScaleFactor = 100;
+  layout.DesktopScaleFactor = desiredScale; layout.DeviceScaleFactor = 100;
   if (display->SendMonitorLayout(display, 1, &layout) == CHANNEL_RC_OK) {
-   sentWidth = desiredWidth; sentHeight = desiredHeight;
+   sentWidth = desiredWidth; sentHeight = desiredHeight; sentScale = desiredScale;
    packet(6, [[NSString stringWithFormat:@"RDP resize requested %ux%u", sentWidth, sentHeight] dataUsingEncoding:NSUTF8StringEncoding]);
   }
  }
@@ -225,6 +226,7 @@ static void runRDP(void) {
  freerdp_settings_set_string(s, FreeRDP_Domain, [configuration[@"domain"] UTF8String]);
  rememberResize(configuration);
  freerdp_settings_set_uint32(s, FreeRDP_DesktopWidth, desiredWidth); freerdp_settings_set_uint32(s, FreeRDP_DesktopHeight, desiredHeight);
+ freerdp_settings_set_uint32(s, FreeRDP_DesktopScaleFactor, desiredScale); freerdp_settings_set_uint32(s, FreeRDP_DeviceScaleFactor, 100);
  freerdp_settings_set_bool(s, FreeRDP_SupportDisplayControl, TRUE);
  freerdp_settings_set_bool(s, FreeRDP_DynamicResolutionUpdate, TRUE);
  freerdp_settings_set_uint32(s, FreeRDP_ColorDepth, 32);

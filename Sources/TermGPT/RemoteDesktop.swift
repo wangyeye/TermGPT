@@ -41,7 +41,17 @@ final class RemoteDesktop: ObservableObject {
     private var wasConnected = false
     func toggleMute() { muted.toggle(); send(["type": "audio", "muted": muted]) }
     @Published var certificate: RemoteCertificate?
-    let bookmark: Bookmark
+    @Published private(set) var bookmark: Bookmark
+    @Published private(set) var actualSize: NSSize?
+    var displayMode: DesktopDisplayMode { bookmark.desktopDisplayMode ?? .fit }
+    var fixedResolution: DesktopFixedResolution { bookmark.desktopFixedResolution ?? .fullHD }
+    var actualResolution: String { actualSize.map { "\(Int($0.width)) × \(Int($0.height))" } ?? L("等待远端画面") }
+    func setDisplay(mode: DesktopDisplayMode, fixed: DesktopFixedResolution) {
+        bookmark.desktopDisplayMode = mode; bookmark.desktopFixedResolution = fixed; scheduleResize()
+    }
+    private func desiredResolution() -> DesktopResolution? {
+        DesktopResolution(size: view.bounds.size, mode: displayMode, backingScale: view.window?.backingScaleFactor ?? 1, fixed: fixedResolution)
+    }
     let view = DesktopCanvas(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
     var changed: (() -> Void)?
     private var process: Process?
@@ -69,9 +79,9 @@ final class RemoteDesktop: ObservableObject {
         guard active, !closed else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.active, self.connected, !self.closed,
-                  let size = DesktopResolution(size: self.view.bounds.size), size != self.lastResize else { return }
+                  let size = self.desiredResolution(), size != self.lastResize else { return }
             self.lastResize = size
-            self.send(["type": "resize", "width": size.width, "height": size.height])
+            self.send(["type": "resize", "width": size.width, "height": size.height, "desktopScale": size.desktopScale])
             self.log?.record("resize_requested", "width=\(size.width) height=\(size.height)")
         }
         resizeWork = work; DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
@@ -88,8 +98,8 @@ final class RemoteDesktop: ObservableObject {
         task.executableURL = path; task.standardInput = stdin; task.standardOutput = stdout; task.standardError = FileHandle.nullDevice
         task.environment = Self.helperEnvironment
         do { try task.run() } catch { connecting = false; throw error }; process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
-        let size = DesktopResolution(size: view.bounds.size) ?? DesktopResolution(size: NSSize(width: 720, height: 600))!
-        send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard, "width": size.width, "height": size.height])
+        let size = desiredResolution() ?? DesktopResolution(size: NSSize(width: 720, height: 600))!
+        send(["protocol": bookmark.kind.rawValue, "host": bookmark.host, "port": bookmark.port, "user": bookmark.user, "password": password, "domain": bookmark.domain ?? "", "clipboard": bookmark.syncClipboard, "width": size.width, "height": size.height, "desktopScale": size.desktopScale])
         let handle = stdout.fileHandleForReading
         let logger = log
         task.terminationHandler = { task in logger?.record("helper_exit", "code=\(task.terminationStatus) reason=\(task.terminationReason.rawValue)") }
@@ -138,6 +148,8 @@ final class RemoteDesktop: ObservableObject {
         guard !closed else { return }
         switch packet.kind {
         case 1: if let image = DesktopFrame.decode(packet.data) {
+            let size = NSSize(width: image.width, height: image.height)
+            if actualSize != size { actualSize = size; log?.record("actual_resolution", "width=\(image.width) height=\(image.height)") }
             if !receivedFrame { receivedFrame = true; log?.record("first_frame_received", "width=\(image.width) height=\(image.height)") }
             view.image = image
         }
@@ -294,7 +306,27 @@ struct DesktopPane: View {
 }
 struct DesktopTabActions: View {
     @ObservedObject var desktop: RemoteDesktop
+    let workspace: Workspace
     var body: some View {
+                Text(L("实际远端分辨率：%@", desktop.actualResolution))
+                if desktop.actualSize != nil && !desktop.connected { Text(L("显示的是上次收到的分辨率")) }
+                Menu(L("显示模式")) {
+                    ForEach(DesktopDisplayMode.allCases, id: \.self) { mode in
+                        Button { workspace.setDesktopDisplay(id: desktop.bookmark.id, mode: mode, fixed: desktop.fixedResolution) } label: {
+                            if mode == desktop.displayMode { Label(mode.title, systemImage: "checkmark") } else { Text(mode.title) }
+                        }
+                    }
+                }
+                if desktop.displayMode == .fixed {
+                    Menu(L("固定分辨率")) {
+                        ForEach(DesktopFixedResolution.allCases, id: \.self) { fixed in
+                            Button { workspace.setDesktopDisplay(id: desktop.bookmark.id, mode: .fixed, fixed: fixed) } label: {
+                                if fixed == desktop.fixedResolution { Label(fixed.rawValue, systemImage: "checkmark") } else { Text(fixed.rawValue) }
+                            }
+                        }
+                    }
+                }
+                Divider()
                 Text(L(desktop.status))
                 Text(L("声音：%@", desktop.muted ? L("已静音") : L(desktop.audioState)))
                 Button(desktop.muted ? L("取消静音") : L("静音")) { desktop.toggleMute() }.disabled(!desktop.connected)
@@ -316,7 +348,8 @@ final class DesktopCanvas: NSView {
     required init?(coder: NSCoder) { super.init(coder: coder); wantsLayer = true; presentFrame() }
     override var wantsUpdateLayer: Bool { true }
     override func updateLayer() { presentFrame() }
-    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); presentFrame() }
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); presentFrame(); sizeChanged?() }
+    override func viewDidChangeBackingProperties() { super.viewDidChangeBackingProperties(); sizeChanged?() }
     private func presentFrame() {
         // Set the backing layer directly: a SwiftUI-hosted NSView may defer draw(_:) until input.
         layer?.backgroundColor = NSColor.black.cgColor

@@ -179,7 +179,7 @@ struct MainView: View {
                                     ConnectionTabActions(session: session, preferences: workspace.preferences)
                                 }
                                 if let desktop = session.desktop {
-                                    DesktopTabActions(desktop: desktop)
+                                    DesktopTabActions(desktop: desktop, workspace: workspace)
                                     Divider()
                                 }
                                 if let bookmark = session.bookmark, bookmark.kind == .ssh {
@@ -645,6 +645,7 @@ struct BookmarkView: View {
                             field(L("域（可选）")) { TextField("", text: Binding(get: { bookmark.domain ?? "" }, set: { bookmark.domain = $0 })) }
                         }
                         Toggle(L("同步文本剪贴板"), isOn: Binding(get: { bookmark.syncClipboard }, set: { bookmark.clipboardSync = $0 }))
+                        DesktopDisplayOptions(bookmark: $bookmark)
                     } else if bookmark.kind == .ssh {
                     if bookmark.authentication == .password {
                         field(L("密码"), help: L("保存到本机 JSON 配置，不使用钥匙串")) { SecureField(L("SSH 登录密码"), text: $password) }
