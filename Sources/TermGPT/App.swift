@@ -380,6 +380,7 @@ struct SettingsView: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    BackupSettingsPane(workspace: workspace, manager: workspace.backupManager)
                     ChatGPTSettings(account: workspace.chatGPT, preferences: $preferences, workspace: workspace)
                     DisclosureGroup(L("Advanced / Other Providers"), isExpanded: $advanced) {
                         VStack(alignment: .leading, spacing: 12) {

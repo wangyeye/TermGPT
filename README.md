@@ -156,3 +156,13 @@ Drag a tab beyond the tab strip (32-point tolerance) to open its existing sessio
 ### Check saved window layout
 
 With Python 3 installed and TermGPT started at least once, run `python3 scripts/check-workspace-layout.py` from the repository directory. An optional argument selects a different workspace JSON. The read-only tool reports window/tab counts and a SHA-256 fingerprint of window placement and session IDs, without printing bookmark addresses, notes or credentials. Compare its output before exit and after restart to verify layout restoration.
+
+## Configuration backup and iCloud Drive
+
+SSH private key files are not copied into backups; transfer those files separately when moving to another Mac. This feature provides backup and restore, rather than live synchronization between Macs.
+
+Open **Settings → Configuration backup and restore**. Export a `.termgptbackup` file, or select one to restore. Backups include bookmarks, folders, notes, commands, settings, saved chats (when enabled), and window layout. Connections stay open during restore; imported window layout applies on next launch. Restoring replaces configuration rather than merging it. A local pre-restore copy is created first; **Restore previous configuration** rolls back the latest restore.
+
+Saved passwords and API keys are excluded by default. To include them in a manual export, enable the option and enter/confirm a backup password of at least eight characters. Entering a password also encrypts exports without credentials. Encryption uses AES-256-GCM with a random salt and PBKDF2-HMAC-SHA256 (310,000 iterations). Keep the password: there is no password recovery. ChatGPT account tokens are never exported or replaced by a restore. Local recovery copies include credentials, have restricted permissions, and stay under Application Support.
+
+For iCloud backup, choose a folder inside **iCloud Drive**, then enable **Back up configuration changes automatically**. macOS must be signed into iCloud Drive and have access to the folder. TermGPT writes files to that folder; macOS handles upload/download. The displayed backup time confirms a file write, not completion of cloud upload. A local folder also works. Automatic backups exclude saved passwords/API keys, but text in notes, commands and chats is copied as written. They keep one latest snapshot per day, up to 30 snapshots per Mac; each Mac uses its own filename prefix. Manual **Back up now** snapshots and exported backups are never pruned. Disabling automatic backup keeps existing files. Backup folder permission and automation settings remain local and are not imported from a backup.

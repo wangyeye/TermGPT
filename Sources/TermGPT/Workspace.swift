@@ -157,6 +157,8 @@ struct RunProposal: Identifiable {
     let high: Bool
 }
 @MainActor final class Workspace: ObservableObject {
+    let backupManager = BackupManager()
+    private var importedLayout: RestoredWorkspace?
     private var readyToPersist = false
     private weak var mainWindow: NSWindow?
     private var mainWindowFrame: SavedWindowFrame?
@@ -256,9 +258,24 @@ struct RunProposal: Identifiable {
         preferences.showBookmarks = bookmarks; preferences.showChat = chat
         persist()
     }
+    func savedState() -> SavedState {
+        return SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: importedLayout ?? RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active, detached: detachedSessions.map { RestoredDetachedTab(tab: RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id), frame: detachedFrames[$0.id]) }, mainFrame: mainWindowFrame, focusedDetached: focusedDetachedID, libraries: restoredLibraries, focusedLibrary: focusedLibrary), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)
+    }
     func persist() {
         guard readyToPersist, !shuttingDown else { return }
-        do { try DiskStore.save(SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active, detached: detachedSessions.map { RestoredDetachedTab(tab: RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id), frame: detachedFrames[$0.id]) }, mainFrame: mainWindowFrame, focusedDetached: focusedDetachedID, libraries: restoredLibraries, focusedLibrary: focusedLibrary), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        do { try DiskStore.save(savedState()); backupManager.schedule(self) }
+        catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+    }
+    func applyBackupState(_ state: SavedState) {
+        bookmarks = state.bookmarks; folders = state.folders ?? []
+        recentBookmarkIDs = BookmarkSearch.recent(state.recentBookmarkIDs ?? [], bookmarks: bookmarks).map(\.id)
+        savedNotes = state.savedNotes ?? []; savedCommands = state.savedCommands ?? []
+        chats = state.chats.isEmpty ? [Chat()] : state.chats; chatID = chats.first?.id
+        preferences = state.preferences; importedLayout = state.restoredWorkspace
+        (sessions + detachedSessions).forEach { $0.apply(preferences) }
+        settingsShown = false
+        notice = L("配置已恢复；窗口布局将在下次启动时恢复")
+        persist()
     }
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()
@@ -515,5 +532,5 @@ struct RunProposal: Identifiable {
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch { self.error = error.localizedDescription }
     }
-    func shutdown() { guard !shuttingDown else { return }; cancel(); chatGPT.cancelLogin(); layoutSave?.cancel(); persist(); shuttingDown = true; (sessions + detachedSessions).forEach { $0.close() } }
+    func shutdown() { guard !shuttingDown else { return }; cancel(); chatGPT.cancelLogin(); layoutSave?.cancel(); persist(); backupManager.flush(self); shuttingDown = true; (sessions + detachedSessions).forEach { $0.close() } }
 }
