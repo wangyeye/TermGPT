@@ -296,6 +296,8 @@ struct TerminalTab: View {
                 if !session.isTerminal { Image(systemName: session.bookmark?.kind.icon ?? "display").font(.caption) }
                 Text(session.name)
             }.overlay(SessionTabDrag(workspace: workspace, id: session.id, name: session.name, detachOnExit: true)) }.buttonStyle(.plain)
+                .accessibilityLabel((session.bookmark?.kind.rawValue.uppercased() ?? L("本机")) + " " + session.name)
+                .accessibilityIdentifier("session-tab-" + session.id.uuidString)
             Button(action: close) { Image(systemName: "xmark").font(.system(size: 9)) }.buttonStyle(.plain)
         }.padding(9).background(active ? Color.accentColor.opacity(0.13) : Color.clear).cornerRadius(7)
     }
