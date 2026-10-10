@@ -87,7 +87,7 @@ private struct DetachedSessionContent: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(session.name).lineLimit(1).onDrag { SessionReturnDrag.provider(session.id) }.help(L("拖到主窗口标签栏"))
+                Text(session.name).lineLimit(1).overlay(SessionTabDrag(workspace: workspace, id: session.id, name: session.name, detachOnExit: false)).help(L("拖到主窗口标签栏"))
                 Spacer()
                 Button { workspace.reattach(session.id) } label: { Image(systemName: "arrow.uturn.backward") }.help(L("移回主窗口")).accessibilityLabel(L("移回主窗口"))
                 if session.isTerminal { Button { session.searchShown.toggle() } label: { Image(systemName: "magnifyingglass") }.help(L("搜索终端内容")) }

@@ -3,7 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 @MainActor enum SessionReturnDrag {
-    static let type = UTType(exportedAs: "local.TermGPT.detached-session")
+    nonisolated static let type = UTType(exportedAs: "local.TermGPT.detached-session")
     static func provider(_ id: UUID) -> NSItemProvider {
         NSItemProvider(item: Data(id.uuidString.utf8) as NSData, typeIdentifier: type.identifier)
     }
@@ -45,4 +45,52 @@ final class WorkspaceWindowObserverView: NSView {
         }
     }
     deinit { observers.forEach(NotificationCenter.default.removeObserver) }
+}
+
+// AppKit owns the drag until mouse-up, including when the pointer leaves the window.
+struct SessionTabDrag: NSViewRepresentable {
+    let workspace: Workspace
+    let id: UUID
+    let name: String
+    let detachOnExit: Bool
+    func makeNSView(context: Context) -> SessionTabDragView { SessionTabDragView() }
+    func updateNSView(_ view: SessionTabDragView, context: Context) {
+        view.workspace = workspace; view.sessionID = id; view.name = name; view.detachOnExit = detachOnExit
+    }
+}
+final class SessionTabDragView: NSView, NSDraggingSource {
+    weak var workspace: Workspace?
+    var sessionID = UUID()
+    var name = ""
+    var detachOnExit = false
+    private var down: NSEvent?
+    private var strip = CGRect.zero
+    override func mouseDown(with event: NSEvent) { down = event }
+    override func mouseUp(with event: NSEvent) {
+        if down != nil { workspace?.active = sessionID }; down = nil
+    }
+    override func mouseDragged(with event: NSEvent) {
+        guard let down, hypot(event.locationInWindow.x - down.locationInWindow.x, event.locationInWindow.y - down.locationInWindow.y) >= 5, let window else { return }
+        self.down = nil
+        let row = window.convertToScreen(convert(bounds, to: nil))
+        strip = CGRect(x: window.frame.minX, y: row.minY - 32, width: window.frame.width, height: row.height + 64)
+        let item = NSDraggingItem(pasteboardWriter: SessionDragPasteboard(id: sessionID))
+        let image = NSImage(size: CGSize(width: max(bounds.width, 80), height: max(bounds.height, 24)))
+        image.lockFocus()
+        (name as NSString).draw(at: CGPoint(x: 6, y: 4), withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
+        image.unlockFocus()
+        item.setDraggingFrame(bounds, contents: image)
+        beginDraggingSession(with: [item], event: event, source: self)
+    }
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .move }
+    func draggingSession(_ session: NSDraggingSession, endedAt point: NSPoint, operation: NSDragOperation) {
+        guard detachOnExit, operation.isEmpty, !strip.contains(point), NSApp.currentEvent?.keyCode != 53 else { return }
+        workspace?.detach(sessionID, at: point)
+    }
+}
+final class SessionDragPasteboard: NSObject, NSPasteboardWriting {
+    let id: UUID
+    init(id: UUID) { self.id = id }
+    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] { [NSPasteboard.PasteboardType(SessionReturnDrag.type.identifier)] }
+    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? { Data(id.uuidString.utf8) }
 }

@@ -59,4 +59,12 @@ final class ProductivityTests: XCTestCase {
         XCTAssertEqual(fitted.size, screen.size)
         XCTAssertNil(SavedWindowFrame(CGRect(x: 0, y: 0, width: 0, height: 600)).rect)
     }
+    func testTransientZeroFramePreservesTerminalHistory() throws {
+        let view = WorkTerminal(frame: CGRect(x: 0, y: 0, width: 800, height: 500))
+        view.feed(text: "migration marker\r\n")
+        view.frame = .zero
+        view.setFrameSize(.zero)
+        view.frame = CGRect(x: 0, y: 0, width: 900, height: 600)
+        XCTAssertEqual(try view.searchBuffer("migration marker", caseSensitive: true, regex: false).count, 1)
+    }
 }

@@ -3,6 +3,16 @@ import AppKit
 import SwiftTerm
 
 final class WorkTerminal: LocalProcessTerminalView {
+    // SwiftUI tears a host down through a zero-sized frame during window migration.
+    // A transient zero terminal grid must not discard the scrollback buffer.
+    override var frame: NSRect {
+        get { super.frame }
+        set { if newValue.width >= 32 && newValue.height >= 32 { super.frame = newValue } }
+    }
+    override func setFrameSize(_ size: NSSize) {
+        guard size.width >= 32, size.height >= 32 else { return }
+        super.setFrameSize(size)
+    }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.contains(.command), ["p", "f"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "") { return false }
         return super.performKeyEquivalent(with: event)
@@ -386,6 +396,11 @@ struct RunProposal: Identifiable {
         layoutSave = work; DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
     func reattach(_ id: UUID, before target: UUID? = nil) {
+        if sessions.contains(where: { $0.id == id }) {
+            if let target { moveTerminal(id, to: target) }
+            else if let index = sessions.firstIndex(where: { $0.id == id }) { let session = sessions.remove(at: index); sessions.append(session) }
+            active = id; return
+        }
         guard !shuttingDown, let session = detachedSessions.first(where: { $0.id == id }) else { return }
         DetachedSessionWindows.removeForReattach(id)
         detachedSessions.removeAll { $0.id == id }; detachedFrames[id] = nil

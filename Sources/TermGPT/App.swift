@@ -41,9 +41,6 @@ struct MainView: View {
     @State private var renameTarget: Chat?
     @State private var deleteTarget: Chat?
     @State private var scrollToLatestRequest = 0
-    @State private var draggedTerminal: UUID?
-    @State private var tabFrames: [UUID: CGRect] = [:]
-    @State private var tabStripBounds = CGRect.zero
     @State private var sftpBookmark: Bookmark?
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
@@ -172,7 +169,7 @@ struct MainView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(workspace.sessions) { session in
-                        TerminalTab(session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
+                        TerminalTab(workspace: workspace, session: session, active: workspace.active == session.id, select: { workspace.active = session.id }, close: { workspace.close(session.id) })
                             .contextMenu {
                                 if let browser = session.web {
                                     Button(L("强制刷新")) { browser.view.reloadFromOrigin() }
@@ -201,19 +198,7 @@ struct MainView: View {
                                 Button(L("关闭全部标签页")) { workspace.closeAllTerminals() }
                             }
                             .onDrop(of: [SessionReturnDrag.type], isTargeted: nil) { SessionReturnDrag.accept($0, workspace: workspace, before: session.id) }
-                            .background(GeometryReader { geometry in Color.clear.preference(key: TabFramesKey.self, value: [session.id: geometry.frame(in: .named("terminalTabs"))]) })
-                            .opacity(draggedTerminal == session.id ? 0.6 : 1)
-                            .simultaneousGesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("terminalTabs"))
-                                .onChanged { drag in
-                                    draggedTerminal = session.id
-                                    if tabStripBounds.contains(drag.location), let target = tabFrames.first(where: { $0.key != session.id && $0.value.contains(drag.location) })?.key {
-                                        workspace.moveTerminal(session.id, to: target)
-                                    }
-                                }
-                                .onEnded { drag in
-                                    draggedTerminal = nil
-                                    if TabDetachPolicy.shouldDetach(at: drag.location, strip: tabStripBounds) { workspace.detach(session.id, at: NSEvent.mouseLocation) }
-                                })
+
                     }
                     Button { workspace.newLocal() } label: { Image(systemName: "plus") }.buttonStyle(.plain).padding(10)
                 }.padding(6)
@@ -221,9 +206,6 @@ struct MainView: View {
             }.frame(height: 47)
                 .onDrop(of: [SessionReturnDrag.type], isTargeted: nil) { SessionReturnDrag.accept($0, workspace: workspace) }
                 .coordinateSpace(name: "terminalTabs")
-                .background(GeometryReader { geometry in Color.clear.preference(key: TabStripBoundsKey.self, value: CGRect(origin: .zero, size: geometry.size)) })
-                .onPreferenceChange(TabFramesKey.self) { tabFrames = $0 }
-                .onPreferenceChange(TabStripBoundsKey.self) { tabStripBounds = $0 }
             Divider()
             if let session = workspace.activeSession {
                 ZStack {
@@ -301,6 +283,7 @@ struct MainView: View {
     }
 }
 struct TerminalTab: View {
+    let workspace: Workspace
     @ObservedObject private var localization = Localization.shared
     @ObservedObject var session: TerminalSession
     let active: Bool
@@ -312,7 +295,7 @@ struct TerminalTab: View {
                 Circle().fill(session.running ? (session.bookmark == nil || !session.isTerminal ? Color.green : Color.yellow) : Color.gray).frame(width: 7, height: 7)
                 if !session.isTerminal { Image(systemName: session.bookmark?.kind.icon ?? "display").font(.caption) }
                 Text(session.name)
-            } }.buttonStyle(.plain)
+            }.overlay(SessionTabDrag(workspace: workspace, id: session.id, name: session.name, detachOnExit: true)) }.buttonStyle(.plain)
             Button(action: close) { Image(systemName: "xmark").font(.system(size: 9)) }.buttonStyle(.plain)
         }.padding(9).background(active ? Color.accentColor.opacity(0.13) : Color.clear).cornerRadius(7)
     }
