@@ -33,4 +33,30 @@ final class ProductivityTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(decoded.savedCommands?.first).matches("linux errors"))
         XCTAssertFalse(command.matches("windows"))
     }
+    func testOldWorkspaceJSONRemainsCompatible() throws {
+        let old = Data("{\"tabs\":[],\"active\":null}".utf8)
+        let decoded = try JSONDecoder().decode(RestoredWorkspace.self, from: old)
+        XCTAssertNil(decoded.detached); XCTAssertNil(decoded.mainFrame)
+    }
+    func testMultiwindowLayoutRoundTrip() throws {
+        let main = RestoredTab(id: UUID(), name: "Local", bookmarkID: nil)
+        let detached = RestoredTab(id: UUID(), name: "Remote", bookmarkID: UUID())
+        let frame = SavedWindowFrame(CGRect(x: 100, y: 200, width: 900, height: 600))
+        let layout = RestoredWorkspace(tabs: [main], active: main.id, detached: [RestoredDetachedTab(tab: detached, frame: frame)], mainFrame: frame, focusedDetached: detached.id, libraries: [RestoredLibraryWindow(kind: "notepad", frame: frame)], focusedLibrary: "notepad")
+        let decoded = try JSONDecoder().decode(RestoredWorkspace.self, from: JSONEncoder().encode(layout))
+        XCTAssertEqual(decoded.tabs.map(\.id), [main.id])
+        XCTAssertEqual(decoded.detached?.map { $0.tab.id }, [detached.id])
+        XCTAssertEqual(decoded.focusedDetached, detached.id)
+        XCTAssertEqual(decoded.detached?.first?.frame, frame)
+        XCTAssertEqual(decoded.libraries?.first?.kind, "notepad")
+        XCTAssertEqual(decoded.focusedLibrary, "notepad")
+    }
+    func testWindowFitsAfterMonitorRemovalAndRejectsInvalidSize() throws {
+        let screen = CGRect(x: 0, y: 30, width: 1280, height: 770)
+        let saved = SavedWindowFrame(CGRect(x: 2400, y: -500, width: 1900, height: 1200))
+        let fitted = try XCTUnwrap(saved.fitted(to: [screen], minimum: CGSize(width: 400, height: 300)))
+        XCTAssertTrue(screen.contains(fitted))
+        XCTAssertEqual(fitted.size, screen.size)
+        XCTAssertNil(SavedWindowFrame(CGRect(x: 0, y: 0, width: 0, height: 600)).rect)
+    }
 }

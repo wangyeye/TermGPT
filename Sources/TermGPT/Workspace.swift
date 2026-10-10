@@ -148,6 +148,15 @@ struct RunProposal: Identifiable {
 }
 @MainActor final class Workspace: ObservableObject {
     private var readyToPersist = false
+    private weak var mainWindow: NSWindow?
+    private var mainWindowFrame: SavedWindowFrame?
+    private var detachedFrames: [UUID: SavedWindowFrame] = [:]
+    private var restoredLibraries: [RestoredLibraryWindow] = []
+    private var focusedLibrary: String?
+    private var focusedDetachedID: UUID?
+    private var windowsRegistered = false
+    private var shuttingDown = false
+    private var layoutSave: DispatchWorkItem?
     @Published var savedCommands: [SavedCommand] = []
     @Published var savedNotes: [SavedNote] = []
     func saveNote(_ item: SavedNote) {
@@ -212,6 +221,19 @@ struct RunProposal: Identifiable {
                 let session = TerminalSession(name: bookmark?.name ?? tab.name, bookmark: bookmark, id: tab.id)
                 session.awaitingRestore = true; configure(session); sessions.append(session)
             }
+            restoredLibraries = restoration.libraries ?? []
+            focusedLibrary = restoration.focusedLibrary
+            mainWindowFrame = restoration.mainFrame
+            focusedDetachedID = restoration.focusedDetached
+            for item in restoration.detached ?? [] where seen.insert(item.tab.id).inserted {
+                let tab = item.tab
+                let bookmark = bookmarks.first { $0.id == tab.bookmarkID }
+                if tab.bookmarkID != nil && bookmark == nil { continue }
+                let session = TerminalSession(name: bookmark?.name ?? tab.name, bookmark: bookmark, id: tab.id)
+                session.awaitingRestore = true
+                detachedSessions.append(session)
+                detachedFrames[session.id] = item.frame
+            }
             active = sessions.contains(where: { $0.id == restoration.active }) ? restoration.active : sessions.first?.id
         } else { newLocal() }
         readyToPersist = true
@@ -225,7 +247,8 @@ struct RunProposal: Identifiable {
         persist()
     }
     func persist() {
-        do { try DiskStore.save(SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: (sessions + detachedSessions).map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        guard readyToPersist, !shuttingDown else { return }
+        do { try DiskStore.save(SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active, detached: detachedSessions.map { RestoredDetachedTab(tab: RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id), frame: detachedFrames[$0.id]) }, mainFrame: mainWindowFrame, focusedDetached: focusedDetachedID, libraries: restoredLibraries, focusedLibrary: focusedLibrary), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
     }
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()
@@ -269,7 +292,7 @@ struct RunProposal: Identifiable {
         return folders[index + offset].id
     }
     func openBookmark(_ bookmark: Bookmark) {
-        let matches = sessions.filter { $0.bookmark?.id == bookmark.id }
+        let matches = (sessions + detachedSessions).filter { $0.bookmark?.id == bookmark.id }
         guard !matches.isEmpty else { open(name: bookmark.name, bookmark: bookmark); return }
         let alert = NSAlert()
         alert.messageText = L("书签已打开")
@@ -279,7 +302,10 @@ struct RunProposal: Identifiable {
         alert.addButton(withTitle: L("取消"))
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            active = matches.first(where: { $0.id == active })?.id ?? matches[0].id; recordRecent(bookmark.id)
+            let id = matches.first(where: { $0.id == active })?.id ?? matches[0].id
+            if detachedSessions.contains(where: { $0.id == id }) { DetachedSessionWindows.focus(id) }
+            else { active = id; mainWindow?.makeKeyAndOrderFront(nil) }
+            recordRecent(bookmark.id)
         case .alertSecondButtonReturn: open(name: bookmark.name, bookmark: bookmark)
         default: break
         }
@@ -323,7 +349,50 @@ struct RunProposal: Identifiable {
     }
     func closeDetached(_ id: UUID) {
         guard let session = detachedSessions.first(where: { $0.id == id }) else { return }
-        session.close(); detachedSessions.removeAll { $0.id == id }; persist()
+        session.close(); detachedSessions.removeAll { $0.id == id }; detachedFrames[id] = nil; if focusedDetachedID == id { focusedDetachedID = nil }; persist()
+    }
+    func registerMainWindow(_ window: NSWindow) {
+        guard !windowsRegistered else { return }
+        windowsRegistered = true; mainWindow = window
+        if let frame = mainWindowFrame?.fitted(to: NSScreen.screens.map(\.visibleFrame), minimum: window.minSize) { window.setFrame(frame, display: true) }
+        mainWindowFrame = SavedWindowFrame(window.frame)
+        let focused = focusedDetachedID
+        let libraryFocus = focusedLibrary
+        let libraries = restoredLibraries
+        for session in detachedSessions { DetachedSessionWindows.show(session: session, workspace: self, at: window.frame.origin, frame: detachedFrames[session.id]) }
+        for item in libraries { if let kind = LibraryWindows.Kind(rawValue: item.kind) { LibraryWindows.show(kind, workspace: self, frame: item.frame) } }
+        if let libraryFocus { LibraryWindows.focus(libraryFocus) }
+        else if let focused, detachedSessions.contains(where: { $0.id == focused }) { DetachedSessionWindows.focus(focused) }
+        else { window.makeKeyAndOrderFront(nil); focusedDetachedID = nil }
+        persist()
+    }
+    func updateMainWindow(_ window: NSWindow, focused: Bool) {
+        guard mainWindow === window else { return }
+        mainWindowFrame = SavedWindowFrame(window.frame)
+        if focused { focusedDetachedID = nil; focusedLibrary = nil; objectWillChange.send() }
+        saveLayoutSoon()
+    }
+    func updateDetachedFrame(_ id: UUID, frame: CGRect) { detachedFrames[id] = SavedWindowFrame(frame); saveLayoutSoon() }
+    func focusDetached(_ id: UUID) { focusedDetachedID = id; focusedLibrary = nil; objectWillChange.send(); saveLayoutSoon() }
+    func updateLibraryLayout(focused: String?, closing: String?) {
+        restoredLibraries = LibraryWindows.snapshot(excluding: closing)
+        if let focused { focusedLibrary = focused; focusedDetachedID = nil }
+        if closing == focusedLibrary { focusedLibrary = nil }
+        saveLayoutSoon()
+    }
+    private func saveLayoutSoon() {
+        layoutSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.persist() }
+        layoutSave = work; DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+    }
+    func reattach(_ id: UUID, before target: UUID? = nil) {
+        guard !shuttingDown, let session = detachedSessions.first(where: { $0.id == id }) else { return }
+        DetachedSessionWindows.removeForReattach(id)
+        detachedSessions.removeAll { $0.id == id }; detachedFrames[id] = nil
+        configure(session)
+        let index = target.flatMap { target in sessions.firstIndex { $0.id == target } } ?? sessions.count
+        sessions.insert(session, at: index); active = id; focusedDetachedID = nil; focusedLibrary = nil
+        mainWindow?.makeKeyAndOrderFront(nil); persist()
     }
     func closeAllTerminals() {
         for id in sessions.map(\.id) { close(id) }
@@ -431,5 +500,5 @@ struct RunProposal: Identifiable {
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch { self.error = error.localizedDescription }
     }
-    func shutdown() { cancel(); chatGPT.cancelLogin(); persist(); (sessions + detachedSessions).forEach { $0.close() } }
+    func shutdown() { guard !shuttingDown else { return }; cancel(); chatGPT.cancelLogin(); layoutSave?.cancel(); persist(); shuttingDown = true; (sessions + detachedSessions).forEach { $0.close() } }
 }

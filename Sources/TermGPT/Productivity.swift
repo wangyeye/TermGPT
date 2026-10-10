@@ -20,6 +20,42 @@ struct RestoredTab: Codable, Identifiable {
 struct RestoredWorkspace: Codable {
     var tabs: [RestoredTab]
     var active: UUID?
+    var detached: [RestoredDetachedTab]? = nil
+    var mainFrame: SavedWindowFrame? = nil
+    var focusedDetached: UUID? = nil
+    var libraries: [RestoredLibraryWindow]? = nil
+    var focusedLibrary: String? = nil
+}
+struct RestoredDetachedTab: Codable {
+    var tab: RestoredTab
+    var frame: SavedWindowFrame?
+}
+struct RestoredLibraryWindow: Codable {
+    var kind: String
+    var frame: SavedWindowFrame
+}
+struct SavedWindowFrame: Codable, Equatable {
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+    init(_ rect: CGRect) { x = rect.minX; y = rect.minY; width = rect.width; height = rect.height }
+    var rect: CGRect? {
+        guard [x, y, width, height].allSatisfy(\.isFinite), width > 0, height > 0 else { return nil }
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+    // Bring windows back onto an available display when a monitor was removed.
+    func fitted(to screens: [CGRect], minimum: CGSize) -> CGRect? {
+        guard var frame = rect, let screen = screens.max(by: { $0.intersection(frame).area < $1.intersection(frame).area }) else { return nil }
+        frame.size.width = min(max(frame.width, minimum.width), screen.width)
+        frame.size.height = min(max(frame.height, minimum.height), screen.height)
+        frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
+        frame.origin.y = max(screen.minY, min(frame.minY, screen.maxY - frame.height))
+        return frame
+    }
+}
+private extension CGRect {
+    var area: CGFloat { isNull || isEmpty ? 0 : width * height }
 }
 
 struct TerminalFindBar: View {

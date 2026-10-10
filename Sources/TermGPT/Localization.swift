@@ -44,6 +44,8 @@ final class Localization: ObservableObject {
         "收藏": "Save Command",
         "工作区已恢复，点击后连接。": "Workspace restored. Connect when ready.",
         "恢复连接": "Restore Connection",
+        "移回主窗口": "Move back to main window",
+        "拖到主窗口标签栏": "Drag to the main window tab bar",
         "启动时恢复工作区": "Restore workspace on startup",
         "恢复标签顺序和当前标签，点击恢复连接后才登录；不保存终端输出。": "Restore tab order and selection. Connections start only when requested. Terminal output is not saved.",
         "快速打开": "Quick Open",

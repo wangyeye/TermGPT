@@ -61,6 +61,7 @@ struct MainView: View {
                 Text(workspace.busy ? L("AI 正在回复") : (workspace.preferences.provider == .chatGPT ? "ChatGPT" : (workspace.preferences.model.isEmpty ? L("AI 未配置") : workspace.preferences.provider.rawValue))).foregroundStyle(workspace.busy ? .orange : .secondary)
             }.font(.caption).padding(10)
         }
+        .background(WorkspaceWindowObserver(workspace: workspace).frame(width: 0, height: 0))
         .preferredColorScheme(workspace.preferences.interfaceTheme.colorScheme)
         .environment(\.locale, Locale(identifier: workspace.preferences.language.resolved() == .chinese ? "zh-Hans" : "en"))
         .toolbar {
@@ -199,6 +200,7 @@ struct MainView: View {
                                     .disabled(workspace.sessions.last?.id == session.id)
                                 Button(L("关闭全部标签页")) { workspace.closeAllTerminals() }
                             }
+                            .onDrop(of: [SessionReturnDrag.type], isTargeted: nil) { SessionReturnDrag.accept($0, workspace: workspace, before: session.id) }
                             .background(GeometryReader { geometry in Color.clear.preference(key: TabFramesKey.self, value: [session.id: geometry.frame(in: .named("terminalTabs"))]) })
                             .opacity(draggedTerminal == session.id ? 0.6 : 1)
                             .simultaneousGesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("terminalTabs"))
@@ -217,6 +219,7 @@ struct MainView: View {
                 }.padding(6)
                 }.frame(maxWidth: .infinity)
             }.frame(height: 47)
+                .onDrop(of: [SessionReturnDrag.type], isTargeted: nil) { SessionReturnDrag.accept($0, workspace: workspace) }
                 .coordinateSpace(name: "terminalTabs")
                 .background(GeometryReader { geometry in Color.clear.preference(key: TabStripBoundsKey.self, value: CGRect(origin: .zero, size: geometry.size)) })
                 .onPreferenceChange(TabFramesKey.self) { tabFrames = $0 }

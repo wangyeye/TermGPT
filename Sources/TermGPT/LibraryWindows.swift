@@ -3,9 +3,10 @@ import AppKit
 
 @MainActor enum LibraryWindows {
     enum Kind: String { case notepad, commands }
+    private static var observers: [NSObjectProtocol] = []
     private static var windows: [Kind: NSWindow] = [:]
 
-    static func show(_ kind: Kind, workspace: Workspace) {
+    static func show(_ kind: Kind, workspace: Workspace, frame: SavedWindowFrame? = nil) {
         if let window = windows[kind] {
             window.makeKeyAndOrderFront(nil)
             return
@@ -16,11 +17,23 @@ import AppKit
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 600, height: 420)
         window.contentView = NSHostingView(rootView: LibraryWindowContent(workspace: workspace, kind: kind, close: { window.close() }))
-        window.center()
+        if let restored = frame?.fitted(to: NSScreen.screens.map(\.visibleFrame), minimum: window.contentMinSize) { window.setFrame(restored, display: false) }
+        else { window.center() }
+        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didBecomeKeyNotification, NSWindow.willCloseNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak workspace] event in
+                MainActor.assumeIsolated {
+                    workspace?.updateLibraryLayout(focused: event.name == NSWindow.didBecomeKeyNotification ? kind.rawValue : nil, closing: event.name == NSWindow.willCloseNotification ? kind.rawValue : nil)
+                }
+            })
+        }
         windows[kind] = window
         window.makeKeyAndOrderFront(nil)
     }
 
+    static func snapshot(excluding kind: String? = nil) -> [RestoredLibraryWindow] {
+        windows.compactMap { key, window in window.isVisible && key.rawValue != kind ? RestoredLibraryWindow(kind: key.rawValue, frame: SavedWindowFrame(window.frame)) : nil }.sorted { $0.kind < $1.kind }
+    }
+    static func focus(_ kind: String) { if let kind = Kind(rawValue: kind) { windows[kind]?.makeKeyAndOrderFront(nil) } }
     static func closeFocused() -> Bool {
         guard let window = NSApp.keyWindow else { return false }
         let owner = window.sheetParent ?? window
