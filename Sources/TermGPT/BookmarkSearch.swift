@@ -88,7 +88,7 @@ private final class QuickOpenPanel: NSPanel {
         super.sendEvent(event)
     }
 }
-final class QuickOpenWindow {
+@MainActor final class QuickOpenWindow {
     private static var window: NSPanel?
     static func show(_ workspace: Workspace) {
         if let window, window.isVisible { window.makeKeyAndOrderFront(nil); return }
