@@ -150,3 +150,5 @@ The main app is [MIT licensed](LICENSE). SwiftTerm retains MIT notices; separate
 Not implemented: split terminals, nested bookmark folders, combined multi-terminal AI context, an autonomous agent loop, MCP or native Anthropic/Gemini protocols. Availability depends on the provider and remote server. TermGPT is not an official OpenAI product.
 
 Notepad and Command Library open in separate, resizable windows. Both can stay open while you use the main tabs; opening an existing window brings it forward. Editors block only their own library window. Command insertion follows the currently selected terminal, shown in the library.
+
+Drag a tab beyond the tab strip (32-point tolerance) to open its existing session in a separate window, or choose **Move to Separate Window** from its menu. Dragging inside the strip still reorders tabs. Detached windows contain only their session controls, with no AI assistant or library panels. Closing one ends that session. On restart, detached sessions restore as pending tabs in the main window.

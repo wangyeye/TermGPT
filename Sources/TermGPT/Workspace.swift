@@ -21,7 +21,7 @@ final class WorkTerminal: LocalProcessTerminalView {
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
         let copy = NSMenuItem(title: L("复制"), action: #selector(copy(_:)), keyEquivalent: ""); copy.target = self; menu.addItem(copy)
-        for title in ["Ask AI", "Explain", "Fix", "Generate command"] {
+        for title in ask == nil ? [] : ["Ask AI", "Explain", "Fix", "Generate command"] {
             let item = NSMenuItem(title: L(title), action: #selector(askSelected(_:)), keyEquivalent: ""); item.representedObject = title; item.target = self; menu.addItem(item)
         }
         return menu
@@ -163,6 +163,7 @@ struct RunProposal: Identifiable {
     func findTerminal() { if let session = activeSession, session.isTerminal, !session.awaitingRestore { session.searchShown = true } }
     let chatGPT = ChatGPTAccount()
     @Published var sessions: [TerminalSession] = [] { didSet { if readyToPersist { persist() } } }
+    @Published var detachedSessions: [TerminalSession] = []
     @Published var active: UUID? { didSet { if readyToPersist { persist() } } }
     @Published var locked: UUID?
     @Published var contextMode = ContextMode.auto
@@ -217,14 +218,14 @@ struct RunProposal: Identifiable {
     }
     func applyTerminalTheme(light: Bool) {
         preferences.lightTerminal = light
-        sessions.forEach { $0.apply(preferences) }
+        (sessions + detachedSessions).forEach { $0.apply(preferences) }
     }
     func setLayout(bookmarks: Bool, chat: Bool) {
         preferences.showBookmarks = bookmarks; preferences.showChat = chat
         persist()
     }
     func persist() {
-        do { try DiskStore.save(SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: sessions.map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
+        do { try DiskStore.save(SavedState(savedNotes: savedNotes, savedCommands: savedCommands, restoredWorkspace: RestoredWorkspace(tabs: (sessions + detachedSessions).map { RestoredTab(id: $0.id, name: $0.name, bookmarkID: $0.bookmark?.id) }, active: active), recentBookmarkIDs: recentBookmarkIDs, bookmarks: bookmarks, folders: folders, chats: preferences.saveMemory ? chats : [], preferences: preferences)) } catch { self.error = "本地保存失败：\(error.localizedDescription)" }
     }
     func saveBookmark(_ bookmark: Bookmark, password: String) throws {
         try bookmark.validate()
@@ -306,6 +307,23 @@ struct RunProposal: Identifiable {
         s.close(); sessions.removeAll { $0.id == id }
         if locked == id { locked = nil }
         if active == id { active = sessions.last?.id }
+    }
+    func detach(_ id: UUID, at point: NSPoint) {
+        guard let session = sessions.first(where: { $0.id == id }) else { return }
+        detachedSessions.append(session)
+        session.view.ask = nil
+        sessions.removeAll { $0.id == id }
+        if locked == id { locked = nil }
+        if active == id { active = sessions.last?.id }
+        // SwiftUI must remove the old host before the same native view is mounted elsewhere.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.detachedSessions.contains(where: { $0.id == id }) else { return }
+            DetachedSessionWindows.show(session: session, workspace: self, at: point)
+        }
+    }
+    func closeDetached(_ id: UUID) {
+        guard let session = detachedSessions.first(where: { $0.id == id }) else { return }
+        session.close(); detachedSessions.removeAll { $0.id == id }; persist()
     }
     func closeAllTerminals() {
         for id in sessions.map(\.id) { close(id) }
@@ -413,5 +431,5 @@ struct RunProposal: Identifiable {
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch { self.error = error.localizedDescription }
     }
-    func shutdown() { cancel(); chatGPT.cancelLogin(); persist(); sessions.forEach { $0.close() } }
+    func shutdown() { cancel(); chatGPT.cancelLogin(); persist(); (sessions + detachedSessions).forEach { $0.close() } }
 }

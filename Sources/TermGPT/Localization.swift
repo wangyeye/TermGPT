@@ -15,6 +15,8 @@ final class Localization: ObservableObject {
     @Published var selection = InterfaceLanguage.system
     var language: InterfaceLanguage { selection.resolved() }
     static let translations: [String: String] = [
+        "移到独立窗口": "Move to Separate Window",
+        "会话功能": "Session Actions",
         "记事本": "Notepad",
         "新增笔记": "New Note",
         "搜索标题、文件夹或内容": "Search title, folder or content",

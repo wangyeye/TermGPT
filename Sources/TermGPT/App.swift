@@ -17,12 +17,12 @@ enum TermGPTIcon {
             CommandGroup(replacing: .newItem) {
                 Button(L("新建本地终端")) { workspace.newLocal() }.keyboardShortcut("t")
                 Button(L("新建聊天")) { workspace.newChat() }.keyboardShortcut("n", modifiers: [.command, .shift])
-                Button(L("关闭当前终端")) { if LibraryWindows.closeFocused() {} else if let id = workspace.active { workspace.close(id) } }.keyboardShortcut("w")
+                Button(L("关闭当前终端")) { if DetachedSessionWindows.closeFocused() || LibraryWindows.closeFocused() {} else if let id = workspace.active { workspace.close(id) } }.keyboardShortcut("w")
             }
             CommandGroup(replacing: .appSettings) { Button(L("设置…")) { workspace.settingsShown = true }.keyboardShortcut(",") }
             CommandMenu(L("终端")) {
                 Button(L("快速打开")) { QuickOpenWindow.show(workspace) }.keyboardShortcut("p")
-                Button(L("搜索终端内容")) { workspace.findTerminal() }.keyboardShortcut("f").disabled(workspace.activeSession?.isTerminal != true || workspace.activeSession?.awaitingRestore == true)
+                Button(L("搜索终端内容")) { if !DetachedSessionWindows.findFocused() { workspace.findTerminal() } }.keyboardShortcut("f").disabled(!DetachedSessionWindows.canFindFocused && (workspace.activeSession?.isTerminal != true || workspace.activeSession?.awaitingRestore == true))
                 Button(L("终端历史与搜索")) { workspace.historyShown = true }
                 Button(L("常用命令库")) { LibraryWindows.show(.commands, workspace: workspace) }.keyboardShortcut("k", modifiers: [.command, .shift])
                 Button(L("记事本")) { LibraryWindows.show(.notepad, workspace: workspace) }
@@ -42,6 +42,8 @@ struct MainView: View {
     @State private var deleteTarget: Chat?
     @State private var scrollToLatestRequest = 0
     @State private var draggedTerminal: UUID?
+    @State private var tabFrames: [UUID: CGRect] = [:]
+    @State private var tabStripBounds = CGRect.zero
     @State private var sftpBookmark: Bookmark?
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
@@ -186,6 +188,8 @@ struct MainView: View {
                                     Button(L("SFTP 文件")) { sftpBookmark = bookmark }
                                     Divider()
                                 }
+                                Button(L("移到独立窗口")) { workspace.detach(session.id, at: NSEvent.mouseLocation) }
+                                Divider()
                                 Button(L("关闭当前终端")) { workspace.close(session.id) }
                                 if session.web != nil {
                                     Button(L("关闭其他标签")) { workspace.closeOthers(keeping: session.id) }
@@ -195,16 +199,28 @@ struct MainView: View {
                                     .disabled(workspace.sessions.last?.id == session.id)
                                 Button(L("关闭全部标签页")) { workspace.closeAllTerminals() }
                             }
-                            .onDrag {
-                                draggedTerminal = session.id
-                                return NSItemProvider(item: Data(session.id.uuidString.utf8) as NSData, typeIdentifier: TerminalTabDrop.type.identifier)
-                            }
-                            .onDrop(of: [TerminalTabDrop.type], delegate: TerminalTabDrop(target: session.id, workspace: workspace, dragged: $draggedTerminal))
+                            .background(GeometryReader { geometry in Color.clear.preference(key: TabFramesKey.self, value: [session.id: geometry.frame(in: .named("terminalTabs"))]) })
+                            .opacity(draggedTerminal == session.id ? 0.6 : 1)
+                            .simultaneousGesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("terminalTabs"))
+                                .onChanged { drag in
+                                    draggedTerminal = session.id
+                                    if tabStripBounds.contains(drag.location), let target = tabFrames.first(where: { $0.key != session.id && $0.value.contains(drag.location) })?.key {
+                                        workspace.moveTerminal(session.id, to: target)
+                                    }
+                                }
+                                .onEnded { drag in
+                                    draggedTerminal = nil
+                                    if TabDetachPolicy.shouldDetach(at: drag.location, strip: tabStripBounds) { workspace.detach(session.id, at: NSEvent.mouseLocation) }
+                                })
                     }
                     Button { workspace.newLocal() } label: { Image(systemName: "plus") }.buttonStyle(.plain).padding(10)
                 }.padding(6)
                 }.frame(maxWidth: .infinity)
             }.frame(height: 47)
+                .coordinateSpace(name: "terminalTabs")
+                .background(GeometryReader { geometry in Color.clear.preference(key: TabStripBoundsKey.self, value: CGRect(origin: .zero, size: geometry.size)) })
+                .onPreferenceChange(TabFramesKey.self) { tabFrames = $0 }
+                .onPreferenceChange(TabStripBoundsKey.self) { tabStripBounds = $0 }
             Divider()
             if let session = workspace.activeSession {
                 ZStack {
@@ -423,7 +439,7 @@ struct SettingsView: View {
                 do {
                     // Selecting ChatGPT must never erase a separately saved API key.
                     if preferences.provider == .openAI || preferences.provider == .custom { try APIKeyStore.write(key) }
-                    workspace.preferences = preferences; workspace.sessions.forEach { $0.apply(preferences) }; workspace.persist(); dismiss()
+                    workspace.preferences = preferences; (workspace.sessions + workspace.detachedSessions).forEach { $0.apply(preferences) }; workspace.persist(); dismiss()
                 } catch { workspace.error = error.localizedDescription }
             }.buttonStyle(.borderedProminent) }
         }.padding(24).frame(width: 660).onAppear { preferences = workspace.preferences; do { key = try APIKeyStore.read() } catch { workspace.error = error.localizedDescription }; advanced = preferences.provider != .chatGPT }
