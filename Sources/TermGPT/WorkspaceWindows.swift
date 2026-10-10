@@ -84,7 +84,9 @@ final class SessionTabDragView: NSView, NSDraggingSource {
     }
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .move }
     func draggingSession(_ session: NSDraggingSession, endedAt point: NSPoint, operation: NSDragOperation) {
-        guard detachOnExit, operation.isEmpty, !strip.contains(point), NSApp.currentEvent?.keyCode != 53 else { return }
+        let event = NSApp.currentEvent
+        let cancelled = event?.type == .keyDown && event?.keyCode == 53
+        guard detachOnExit, operation.isEmpty, !strip.contains(point), !cancelled else { return }
         workspace?.detach(sessionID, at: point)
     }
 }

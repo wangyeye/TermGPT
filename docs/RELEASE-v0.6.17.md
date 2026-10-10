@@ -2,7 +2,7 @@ Tab dragging now uses a native AppKit drag session so dragging can continue beyo
 
 Return detached tabs to the main window by dragging the session header onto its tab bar, or use **Move back to main window**. Returning retains the existing session instead of reconnecting it.
 
-Workspace restoration now preserves main and detached window positions and sizes, tab distribution and selection, the focused window, and open Notepad / Command Library windows. Windows are fitted to available displays after a monitor is removed. Restored sessions remain disconnected until **Restore Connection** is clicked. Older workspace JSON remains compatible.
+Workspace restoration now preserves main and detached window positions and sizes, tab distribution and selection, the focused window, and open Notepad / Command Library windows. Windows are fitted to available displays after a monitor is removed. Restored sessions remain disconnected until **Restore Connection** is clicked. Older workspace JSON remains compatible. Quick Open follows the application theme and also lists detached sessions.
 
 ARM and Intel packages are ad-hoc signed, not notarized. Physical Intel testing is pending. Personal configuration and credentials are excluded.
 

@@ -19,7 +19,7 @@ struct QuickOpenPane: View {
     @State private var selection: String?
     @FocusState private var focused: Bool
     private var matching: [Bookmark] { workspace.bookmarks.filter { BookmarkSearch.matches($0, query: query, folders: workspace.folders) } }
-    private var tabs: [TerminalSession] { workspace.sessions.filter { query.isEmpty || ($0.name + " " + ($0.bookmark?.host ?? "")).localizedStandardContains(query) } }
+    private var tabs: [TerminalSession] { (workspace.sessions + workspace.detachedSessions).filter { query.isEmpty || ($0.name + " " + ($0.bookmark?.host ?? "")).localizedStandardContains(query) } }
     private var ordered: [Bookmark] {
         guard query.isEmpty else { return matching }
         let recent = workspace.recentBookmarks
@@ -30,7 +30,7 @@ struct QuickOpenPane: View {
         guard let id else { return }
         close()
         DispatchQueue.main.async {
-            if let tab = workspace.sessions.first(where: { "tab:" + $0.id.uuidString == id }) { workspace.active = tab.id; if let bookmark = tab.bookmark { workspace.recordRecent(bookmark.id) } }
+            if let tab = (workspace.sessions + workspace.detachedSessions).first(where: { "tab:" + $0.id.uuidString == id }) { if workspace.detachedSessions.contains(where: { $0.id == tab.id }) { DetachedSessionWindows.focus(tab.id) } else { workspace.active = tab.id }; if let bookmark = tab.bookmark { workspace.recordRecent(bookmark.id) } }
             else if let bookmark = workspace.bookmarks.first(where: { "bookmark:" + $0.id.uuidString == id }) { workspace.openBookmark(bookmark) }
         }
     }
@@ -57,6 +57,7 @@ struct QuickOpenPane: View {
             }
             Text(L("↑↓ 选择 · 回车打开 · Esc 关闭")).font(.caption).foregroundStyle(.secondary)
         }.padding(16).frame(width: 560, height: 440)
+            .preferredColorScheme(workspace.preferences.interfaceTheme.colorScheme)
             .onAppear { selection = ids.first; DispatchQueue.main.async { focused = true } }
             .onChange(of: query) { _ in selection = ids.first }
             .onExitCommand(perform: close)
@@ -92,6 +93,7 @@ final class QuickOpenWindow {
     static func show(_ workspace: Workspace) {
         if let window, window.isVisible { window.makeKeyAndOrderFront(nil); return }
         let panel = QuickOpenPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        panel.appearance = workspace.preferences.interfaceTheme.colorScheme.map { NSAppearance(named: $0 == .dark ? .darkAqua : .aqua) } ?? nil
         panel.isReleasedWhenClosed = false; panel.title = L("快速打开")
         panel.contentView = NSHostingView(rootView: QuickOpenPane(workspace: workspace, close: { [weak panel] in panel?.close() }))
         window = panel; panel.center(); panel.makeKeyAndOrderFront(nil)
