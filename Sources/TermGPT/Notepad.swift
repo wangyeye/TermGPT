@@ -16,7 +16,7 @@ struct SavedNote: Codable, Identifiable {
 
 struct NotepadView: View {
     @ObservedObject var workspace: Workspace
-    @Environment(\.dismiss) var dismiss
+    var close: () -> Void
     @State private var query = ""
     @State private var draft: SavedNote?
     @State private var deleting: SavedNote?
@@ -41,8 +41,8 @@ struct NotepadView: View {
                     if workspace.savedNotes.filter({ $0.matches(query) }).isEmpty { Text(L("没有匹配的笔记")).foregroundStyle(.secondary).padding(.vertical) }
                 }
             }
-            HStack { Text(L("笔记仅保存在本机 JSON 配置中。" )).font(.caption).foregroundStyle(.secondary); Spacer(); Button(L("关闭")) { dismiss() } }
-        }.padding(20).frame(width: 720, height: 520)
+            HStack { Text(L("笔记仅保存在本机 JSON 配置中。" )).font(.caption).foregroundStyle(.secondary); Spacer(); Button(L("关闭")) { close() } }
+        }.padding(20).frame(minWidth: 600, minHeight: 420)
             .sheet(item: $draft) { item in NoteEditor(note: item) { workspace.saveNote($0) } }
             .alert(L("删除笔记？"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
                 Button(L("取消"), role: .cancel) { deleting = nil }

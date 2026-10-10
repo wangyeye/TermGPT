@@ -56,7 +56,7 @@ struct TerminalFindBar: View {
 
 struct CommandLibraryView: View {
     @ObservedObject var workspace: Workspace
-    @Environment(\.dismiss) var dismiss
+    var close: () -> Void
     @State private var query = ""
     @State private var draft: SavedCommand?
     @State private var deleting: SavedCommand?
@@ -80,8 +80,8 @@ struct CommandLibraryView: View {
                     }.padding(.vertical, 6).accessibilityElement(children: .contain)
                 }
             }
-            HStack { Text(L("命令仅保存在本机，请勿在其中保存密码。多行命令可复制。" )).font(.caption).foregroundStyle(.secondary); Spacer(); Button(L("关闭")) { dismiss() } }
-        }.padding(20).frame(width: 720, height: 520)
+            HStack { Text(L("命令仅保存在本机，请勿在其中保存密码。多行命令可复制。" )).font(.caption).foregroundStyle(.secondary); Spacer(); Button(L("关闭")) { close() } }
+        }.padding(20).frame(minWidth: 600, minHeight: 420)
             .sheet(item: $draft) { item in CommandEditor(command: item) { workspace.saveCommand($0) } }
             .alert(L("删除命令？"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
                 Button(L("取消"), role: .cancel) { deleting = nil }

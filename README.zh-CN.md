@@ -148,3 +148,5 @@ VNC/RDP 桌面直接铺满标签页，不显示顶部状态栏。右键桌面标
 主程序使用 [MIT License](LICENSE)。SwiftTerm 保留 MIT 声明；独立 lrzsz 组件使用 GPL-2.0-or-later，桌面组件使用 GPL-3.0-or-later。发行版 `TermGPT-RemoteDesktop-source.tar.gz` 提供对应桌面源码。详见[桌面依赖说明](Vendor/RemoteDesktop/README.md)、[lrzsz 源码](Vendor/lrzsz)和[SwiftTerm 修改说明](Vendor/SwiftTerm/TERMGPT-PATCHES.md)。
 
 尚未实现分屏终端、多层书签文件夹、多终端联合 AI 上下文、自主 Agent 循环、MCP 或原生 Anthropic/Gemini 协议。实际可用性取决于供应商和远端服务。TermGPT 不是 OpenAI 官方产品。
+
+记事本和常用命令库以可移动、可调整大小的独立窗口打开，可以同时打开并操作主窗口标签页；重复点击入口会聚焦已有窗口。编辑对话框仅附属于各自窗口。命令填入跟随当前选中的终端，目标显示在命令库中。

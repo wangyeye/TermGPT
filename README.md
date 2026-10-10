@@ -148,3 +148,5 @@ Build requires macOS 13+, Swift 5.9+, Command Line Tools and system SSH/zsh. Des
 The main app is [MIT licensed](LICENSE). SwiftTerm retains MIT notices; separate lrzsz helpers use GPL-2.0-or-later and the desktop helper uses GPL-3.0-or-later. Releases provide desktop source in `TermGPT-RemoteDesktop-source.tar.gz`. See [desktop dependency notes](Vendor/RemoteDesktop/README.md), [lrzsz source](Vendor/lrzsz) and [SwiftTerm patches](Vendor/SwiftTerm/TERMGPT-PATCHES.md).
 
 Not implemented: split terminals, nested bookmark folders, combined multi-terminal AI context, an autonomous agent loop, MCP or native Anthropic/Gemini protocols. Availability depends on the provider and remote server. TermGPT is not an official OpenAI product.
+
+Notepad and Command Library open in separate, resizable windows. Both can stay open while you use the main tabs; opening an existing window brings it forward. Editors block only their own library window. Command insertion follows the currently selected terminal, shown in the library.

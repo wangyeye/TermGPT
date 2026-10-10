@@ -150,13 +150,11 @@ struct RunProposal: Identifiable {
     private var readyToPersist = false
     @Published var savedCommands: [SavedCommand] = []
     @Published var savedNotes: [SavedNote] = []
-    @Published var notepadShown = false
     func saveNote(_ item: SavedNote) {
         var note = item; note.updatedAt = Date()
         if let index = savedNotes.firstIndex(where: { $0.id == note.id }) { savedNotes[index] = note }
         else { savedNotes.append(note) }; persist()
     }
-    @Published var commandLibraryShown = false
     @Published var commandDraft: SavedCommand?
     func saveCommand(_ item: SavedCommand) {
         if let index = savedCommands.firstIndex(where: { $0.id == item.id }) { savedCommands[index] = item }

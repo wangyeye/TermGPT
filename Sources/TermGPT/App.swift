@@ -17,15 +17,15 @@ enum TermGPTIcon {
             CommandGroup(replacing: .newItem) {
                 Button(L("新建本地终端")) { workspace.newLocal() }.keyboardShortcut("t")
                 Button(L("新建聊天")) { workspace.newChat() }.keyboardShortcut("n", modifiers: [.command, .shift])
-                Button(L("关闭当前终端")) { if let id = workspace.active { workspace.close(id) } }.keyboardShortcut("w")
+                Button(L("关闭当前终端")) { if LibraryWindows.closeFocused() {} else if let id = workspace.active { workspace.close(id) } }.keyboardShortcut("w")
             }
             CommandGroup(replacing: .appSettings) { Button(L("设置…")) { workspace.settingsShown = true }.keyboardShortcut(",") }
             CommandMenu(L("终端")) {
                 Button(L("快速打开")) { QuickOpenWindow.show(workspace) }.keyboardShortcut("p")
                 Button(L("搜索终端内容")) { workspace.findTerminal() }.keyboardShortcut("f").disabled(workspace.activeSession?.isTerminal != true || workspace.activeSession?.awaitingRestore == true)
                 Button(L("终端历史与搜索")) { workspace.historyShown = true }
-                Button(L("常用命令库")) { workspace.commandLibraryShown = true }.keyboardShortcut("k", modifiers: [.command, .shift])
-                Button(L("记事本")) { workspace.notepadShown = true }
+                Button(L("常用命令库")) { LibraryWindows.show(.commands, workspace: workspace) }.keyboardShortcut("k", modifiers: [.command, .shift])
+                Button(L("记事本")) { LibraryWindows.show(.notepad, workspace: workspace) }
                 Button(L("导出会话")) { workspace.export() }
             }
             CommandGroup(after: .sidebar) {
@@ -63,11 +63,11 @@ struct MainView: View {
         .environment(\.locale, Locale(identifier: workspace.preferences.language.resolved() == .chinese ? "zh-Hans" : "en"))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button { workspace.notepadShown = true } label: { Image(systemName: "note.text") }
+                Button { LibraryWindows.show(.notepad, workspace: workspace) } label: { Image(systemName: "note.text") }
                     .help(L("记事本")).accessibilityLabel(L("记事本"))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { workspace.commandLibraryShown = true } label: { Image(systemName: "terminal") }
+                Button { LibraryWindows.show(.commands, workspace: workspace) } label: { Image(systemName: "terminal") }
                     .help(L("常用命令库")).accessibilityLabel(L("常用命令库"))
             }
             ToolbarItem(placement: .primaryAction) {
@@ -106,8 +106,6 @@ struct MainView: View {
         .sheet(isPresented: $workspace.bookmarkShown) { BookmarkView(workspace: workspace, existing: workspace.editingBookmark) }
         .sheet(isPresented: $workspace.foldersShown) { FolderManagerView(workspace: workspace) }
         .sheet(isPresented: $workspace.historyShown) { HistoryView(workspace: workspace) }
-        .sheet(isPresented: $workspace.commandLibraryShown) { CommandLibraryView(workspace: workspace) }
-        .sheet(isPresented: $workspace.notepadShown) { NotepadView(workspace: workspace) }
         .sheet(item: $workspace.commandDraft) { item in CommandEditor(command: item) { workspace.saveCommand($0) } }
         .sheet(item: $workspace.proposal) { p in RunView(workspace: workspace, proposal: p) }
         .alert("TermGPT", isPresented: Binding(get: { workspace.error != nil }, set: { if !$0 { workspace.error = nil } })) { Button(L("好")) { workspace.error = nil } } message: { Text(L(workspace.error ?? "")) }
